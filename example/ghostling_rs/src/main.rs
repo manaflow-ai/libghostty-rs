@@ -457,12 +457,20 @@ impl Dimensions {
 // Input handling
 // ---------------------------------------------------------------------------
 
+/// Poll macroquad for keyboard events and use the libghostty key encoder
+/// to produce the correct VT escape sequences, which are then written
+/// to the pty.  The encoder respects terminal modes (cursor key
+/// application mode, Kitty keyboard protocol, etc.) so we don't need
+/// to maintain our own escape-sequence tables.
 fn handle_keyboard_input<'alloc>(
     encoder: &mut key::Encoder<'alloc>,
     event: &mut key::Event<'alloc>,
     pty: &Pty,
     terminal: &Terminal<'alloc, '_>,
 ) -> Result<(), ghostty::Error> {
+    // Drain printable characters from macroquad's input queue.  We collect
+    // them into a single UTF-8 buffer so the encoder can attach text
+    // to the key event.
     let mut chars_pressed = Vec::<char>::with_capacity(4);
     while let Some(ch) = get_char_pressed() {
         chars_pressed.push(ch);
@@ -478,16 +486,35 @@ fn handle_keyboard_input<'alloc>(
             continue;
         };
 
+        // Conditionally attach any UTF-8 text that macroquad produced for this frame.
+        // For unmodified printable keys this is the character itself;
+        // for special keys or ctrl combos there's typically no text.
+        // Release events never carry text.
         let maybe_text = if !text.is_empty() && !is_key_released(kc) {
             Some(text.as_str())
         } else {
             None
         };
 
+        let mods = keyboard_mods();
+
+        // Consumed mods are modifiers the platform's text input
+        // already accounted for when producing the UTF-8 text.
+        // For printable keys, shift is consumed (it turns 'a' → 'A').
+        // For non-printable keys nothing is consumed.
+        let mut consumed = key::Mods::empty();
+        if ucp != '\0' && mods.contains(key::Mods::SHIFT) {
+            consumed |= key::Mods::SHIFT;
+        }
+
         event
             .set_action(action)
             .set_key(key)
-            .set_mods(keyboard_mods())
+            .set_mods(mods)
+            .set_consumed_mods(consumed)
+            // The unshifted codepoint is the character the key produces
+            // with no modifiers.  The Kitty protocol needs it to identify
+            // keys independent of the current shift state.
             .set_unshifted_codepoint(ucp)
             .set_utf8(maybe_text);
 
@@ -496,15 +523,24 @@ fn handle_keyboard_input<'alloc>(
         }
 
         let key_seq = encoder
+            // Sync encoder options from the terminal so mode changes (e.g.
+            // application cursor keys, Kitty keyboard protocol) are honoured.
             .set_options_from_terminal(terminal)
             .encode_to_vec(event)?;
 
         if !key_seq.is_empty() {
             pty.write(&key_seq);
+
+            // Text was consumed by the encoder — clear it so the
+            // fallback below doesn't double-send.
             text.clear();
         }
     }
 
+    // Fallback: on some platforms (e.g. VMs) the character event arrives
+    // a frame after the key-press event.  If we collected UTF-8 text but
+    // no key event consumed it, write it directly to the PTY so input
+    // isn't silently dropped.
     if !text.is_empty() {
         pty.write(text.as_bytes());
     }
@@ -512,6 +548,11 @@ fn handle_keyboard_input<'alloc>(
     Ok(())
 }
 
+/// Poll macroquad for mouse events and use the libghostty mouse encoder
+/// to produce the correct VT escape sequences, which are then written
+/// to the pty.  The encoder handles tracking mode (X10, normal, button,
+/// any-event) and output format (X10, UTF8, SGR, URxvt, SGR-Pixels)
+/// based on what the terminal application has requested.
 fn handle_mouse_input<'alloc>(
     encoder: &mut mouse::Encoder<'alloc>,
     event: &mut mouse::Event<'alloc>,
@@ -519,6 +560,8 @@ fn handle_mouse_input<'alloc>(
     terminal: &mut Terminal<'alloc, '_>,
     dims: Dimensions,
 ) -> Result<(), ghostty::Error> {
+    // Track whether any button is currently held — the encoder uses
+    // this to distinguish drags from plain motion.
     let any_pressed = ALL_MOUSE_BUTTONS
         .into_iter()
         .any(|(m, _)| is_mouse_button_down(m));
@@ -529,7 +572,12 @@ fn handle_mouse_input<'alloc>(
         .set_position(mouse::Position { x, y });
 
     encoder
+        // Sync encoder tracking mode and format from terminal state so
+        // mode changes (e.g. applications enabling SGR mouse reporting)
+        // are honoured automatically.
         .set_options_from_terminal(terminal)
+        // Provide the encoder with the current terminal geometry so it
+        // can convert pixel positions to cell coordinates.
         .set_size(mouse::EncoderSize {
             screen_width: dims.window_width as u32,
             screen_height: dims.window_height as u32,
@@ -545,6 +593,7 @@ fn handle_mouse_input<'alloc>(
         // motion events within the same cell.
         .set_track_last_cell(true);
 
+    // Check each mouse button for press/release events.
     for (mb, btn) in ALL_MOUSE_BUTTONS {
         let action = if is_mouse_button_released(mb) {
             mouse::Action::Release
@@ -558,6 +607,8 @@ fn handle_mouse_input<'alloc>(
         pty.write(&encoder.encode_to_vec(event)?);
     }
 
+    // Mouse motion — send a motion event with whatever button is held
+    // (or no button for pure motion in any-event tracking mode).
     let delta = mouse_delta_position();
     if delta.x.abs() > 1e-6 || delta.y.abs() > 1e-6 {
         event.set_action(mouse::Action::Motion).set_button(
@@ -569,8 +620,14 @@ fn handle_mouse_input<'alloc>(
         pty.write(&encoder.encode_to_vec(event)?);
     }
 
+    // Scroll wheel handling.  When a mouse tracking mode is active the
+    // wheel events are forwarded to the application as button 4/5
+    // press+release pairs.  Otherwise we scroll the viewport through
+    // the scrollback buffer so the user can review history.
     let (wheel_x, wheel_y) = mouse_wheel();
     if wheel_x.abs() > 1e-6 || wheel_y.abs() > 1e-6 {
+        // Check whether any mouse tracking mode is enabled.  If so,
+        // the application wants to handle scroll events itself.
         let is_mouse_tracking = [
             Mode::X10Mouse,
             Mode::NormalMouse,
@@ -595,8 +652,10 @@ fn handle_mouse_input<'alloc>(
             event.set_action(mouse::Action::Release);
             pty.write(&encoder.encode_to_vec(event)?);
         } else {
-            // Scroll the viewport through scrollback. Scroll 3 rows
-            // per wheel tick for a comfortable pace.
+            // Scroll the viewport through scrollback. Adapt
+            // the scroll delta to the wheel/touchpad velocity
+            // for a comfortable pace.  Delta is negative to scroll
+            // up (into history), positive to scroll down.
             let scroll_delta: isize = (wheel_y * -2.5) as isize;
             terminal.scroll_viewport(ScrollViewport::Delta(scroll_delta));
         }
