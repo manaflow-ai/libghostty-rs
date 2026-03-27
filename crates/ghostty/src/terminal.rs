@@ -152,11 +152,11 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator, opts: Options) -> Result<Self> {
         let mut raw: ffi::GhosttyTerminal_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_terminal_new(alloc, &mut raw, opts.into()) };
+        let result = unsafe { ffi::ghostty_terminal_new(alloc, &raw mut raw, opts.into()) };
         from_result(result)?;
         Ok(Self {
             inner: Object::new(raw)?,
-            vtable: Default::default(),
+            vtable: VTable::default(),
         })
     }
 
@@ -239,7 +239,7 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
     pub fn grid_ref(&self, point: Point) -> Result<GridRef<'_>> {
         let mut grid_ref = ffi::sized!(ffi::GhosttyGridRef);
         let result = unsafe {
-            ffi::ghostty_terminal_grid_ref(self.inner.as_raw(), point.into(), &mut grid_ref)
+            ffi::ghostty_terminal_grid_ref(self.inner.as_raw(), point.into(), &raw mut grid_ref)
         };
         from_result(result)?;
         Ok(GridRef {
@@ -251,8 +251,9 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
     /// Get the current value of a terminal mode.
     pub fn mode(&self, mode: Mode) -> Result<bool> {
         let mut value = false;
-        let result =
-            unsafe { ffi::ghostty_terminal_mode_get(self.inner.as_raw(), mode.into(), &mut value) };
+        let result = unsafe {
+            ffi::ghostty_terminal_mode_get(self.inner.as_raw(), mode.into(), &raw mut value)
+        };
         from_result(result)?;
         Ok(value)
     }
@@ -310,7 +311,7 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
     /// This is the style that will be applied to newly printed characters.
     pub fn cursor_style(&self) -> Result<style::Style> {
         self.get::<ffi::GhosttyStyle>(ffi::GhosttyTerminalData_GHOSTTY_TERMINAL_DATA_CURSOR_STYLE)
-            .and_then(|v| v.try_into())
+            .and_then(std::convert::TryInto::try_into)
     }
     /// Get the current Kitty keyboard protocol flags.
     pub fn kitty_keyboard_flags(&self) -> Result<key::KittyKeyFlags> {
@@ -487,6 +488,7 @@ pub struct Mode(pub ffi::GhosttyMode);
 impl Mode {
     const ANSI_BIT: u16 = 1 << 15;
 
+    #[must_use]
     pub const fn new(v: u16, ansi: bool) -> Self {
         if ansi {
             Self(v | Self::ANSI_BIT)
@@ -495,10 +497,12 @@ impl Mode {
         }
     }
 
+    #[must_use]
     pub fn value(self) -> u16 {
         (self.0) & 0x7fff
     }
 
+    #[must_use]
     pub fn kind(self) -> ModeKind {
         if (self.0) & Self::ANSI_BIT > 0 {
             ModeKind::Ansi
@@ -588,6 +592,9 @@ impl From<DeviceAttributes> for ffi::GhosttyDeviceAttributes {
 pub struct PrimaryDeviceAttributes(ffi::GhosttyDeviceAttributesPrimary);
 
 impl PrimaryDeviceAttributes {
+    #[must_use]
+    // precondition is documented in DeviceAttributes
+    #[allow(clippy::missing_panics_doc)]
     pub fn new<const N: usize>(
         conformance_level: ConformanceLevel,
         features: [DeviceAttributeFeature; N],
@@ -615,6 +622,7 @@ impl From<PrimaryDeviceAttributes> for ffi::GhosttyDeviceAttributesPrimary {
 pub struct ConformanceLevel(pub u16);
 
 impl ConformanceLevel {
+    #![allow(clippy::cast_possible_truncation)] // bindgen isn't perfect
     pub const VT100: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_VT100 as u16);
     pub const VT101: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_VT101 as u16);
     pub const VT102: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_VT102 as u16);
@@ -639,6 +647,7 @@ impl ConformanceLevel {
 pub struct DeviceAttributeFeature(pub u16);
 
 impl DeviceAttributeFeature {
+    #![allow(clippy::cast_possible_truncation)] // bindgen isn't perfect
     pub const COLUMNS_132: Self = Self(ffi::GHOSTTY_DA_FEATURE_COLUMNS_132 as u16);
     pub const PRINTER: Self = Self(ffi::GHOSTTY_DA_FEATURE_PRINTER as u16);
     pub const REGIS: Self = Self(ffi::GHOSTTY_DA_FEATURE_REGIS as u16);
@@ -688,6 +697,7 @@ impl From<SecondaryDeviceAttributes> for ffi::GhosttyDeviceAttributesSecondary {
 pub struct DeviceType(pub u16);
 
 impl DeviceType {
+    #![allow(clippy::cast_possible_truncation)] // bindgen isn't perfect
     pub const VT100: Self = Self(ffi::GHOSTTY_DA_DEVICE_TYPE_VT100 as u16);
     pub const VT220: Self = Self(ffi::GHOSTTY_DA_DEVICE_TYPE_VT220 as u16);
     pub const VT240: Self = Self(ffi::GHOSTTY_DA_DEVICE_TYPE_VT240 as u16);
@@ -886,7 +896,7 @@ handlers! {
         from = GhosttyTerminalBellFn(),
         to = BellFn(),
     ) |term, func| {
-        func(&term)
+        func(&term);
     }
 
     /// Call the given function when the terminal receives
@@ -923,7 +933,7 @@ handlers! {
         from = GhosttyTerminalTitleChangedFn(),
         to = TitleChanged(),
     ) |term, func| {
-        func(&term)
+        func(&term);
     }
 
     /// Call the given function in response to XTWINOPS size queries

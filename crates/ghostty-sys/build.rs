@@ -83,13 +83,11 @@ fn fetch_ghostty(out_dir: &Path) -> PathBuf {
     let stamp = src_dir.join(".ghostty-commit");
 
     // Skip fetch if we already have the right commit.
-    if stamp.exists() {
-        if let Ok(existing) = std::fs::read_to_string(&stamp) {
-            if existing.trim() == GHOSTTY_COMMIT {
+    if stamp.exists()
+        && let Ok(existing) = std::fs::read_to_string(&stamp)
+            && existing.trim() == GHOSTTY_COMMIT {
                 return src_dir;
             }
-        }
-    }
 
     // Clean and clone fresh.
     if src_dir.exists() {

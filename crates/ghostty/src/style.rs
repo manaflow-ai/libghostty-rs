@@ -17,6 +17,7 @@ use crate::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Id(pub(crate) ffi::GhosttyStyleId);
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Style {
     pub fg_color: StyleColor,
@@ -34,9 +35,10 @@ pub struct Style {
 }
 
 impl Style {
+    #[must_use]
     pub fn is_default(self) -> bool {
         let raw = ffi::GhosttyStyle::from(self);
-        unsafe { ffi::ghostty_style_is_default(&raw) }
+        unsafe { ffi::ghostty_style_is_default(&raw const raw) }
     }
 }
 
@@ -127,6 +129,7 @@ impl TryFrom<ffi::GhosttyStyle> for Style {
             invisible: value.invisible,
             strikethrough: value.strikethrough,
             overline: value.overline,
+            #[allow(clippy::cast_sign_loss)]
             underline: Underline::try_from(value.underline as u32)
                 .map_err(|_| Error::InvalidValue)?,
         })
@@ -148,6 +151,8 @@ impl From<Style> for ffi::GhosttyStyle {
             invisible: value.invisible,
             strikethrough: value.strikethrough,
             overline: value.overline,
+            // I don't know why it's an i32 either, Clippy.
+            #[allow(clippy::cast_possible_wrap)]
             underline: u32::from(value.underline) as i32,
         }
     }

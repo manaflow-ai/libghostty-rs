@@ -36,7 +36,7 @@ impl Event {
                 self.into(),
                 buf.as_mut_ptr().cast(),
                 buf.len(),
-                &mut written,
+                &raw mut written,
             )
         };
         from_result_with_len(result, written)

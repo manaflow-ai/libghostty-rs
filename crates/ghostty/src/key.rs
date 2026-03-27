@@ -12,6 +12,7 @@
 //!     *  Set event properties (action, key, modifiers, etc.)
 //!     *  Encode with [`Encoder::encode_to_vec`] (with a growable `Vec` buffer)
 //!        or [`Encoder::encode`] (with a fixed byte buffer).
+#![allow(clippy::cast_possible_truncation)] // bindgen ain't perfect
 use std::mem::MaybeUninit;
 
 use crate::{
@@ -43,7 +44,7 @@ impl<'alloc> Encoder<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator) -> Result<Self> {
         let mut raw: ffi::GhosttyKeyEncoder_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_key_encoder_new(alloc, &mut raw) };
+        let result = unsafe { ffi::ghostty_key_encoder_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -116,7 +117,7 @@ impl<'alloc> Encoder<'alloc> {
                 event.0.as_raw(),
                 buf.as_mut_ptr().cast(),
                 buf.len(),
-                &mut written,
+                &raw mut written,
             )
         };
         from_result_with_len(result, written)
@@ -130,12 +131,12 @@ impl<'alloc> Encoder<'alloc> {
                 event.0.as_raw(),
                 std::ptr::null_mut(),
                 0,
-                &mut written,
+                &raw mut written,
             )
         };
         match from_result(result) {
             Err(Error::OutOfSpace { .. }) => Ok(written),
-            Ok(_) => Ok(0),
+            Ok(()) => Ok(0),
             Err(e) => Err(e),
         }
     }
@@ -147,12 +148,12 @@ impl<'alloc> Encoder<'alloc> {
     /// alt escape prefix, modifyOtherKeys state, and Kitty keyboard protocol
     /// flags from the terminal state.
     ///
-    /// Note that the macos_option_as_alt option cannot be determined from
+    /// Note that the `macos_option_as_alt` option cannot be determined from
     /// terminal state and is reset to [`OptionAsAlt::False`] by this call.
     /// Use [`Encoder::set_macos_option_as_alt`] to set it afterward if needed.
     pub fn set_options_from_terminal(&mut self, terminal: &Terminal<'_, '_>) -> &mut Self {
         unsafe {
-            ffi::ghostty_key_encoder_setopt_from_terminal(self.0.as_raw(), terminal.inner.as_raw())
+            ffi::ghostty_key_encoder_setopt_from_terminal(self.0.as_raw(), terminal.inner.as_raw());
         }
         self
     }
@@ -163,7 +164,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyKeyEncoderOption_GHOSTTY_KEY_ENCODER_OPT_CURSOR_KEY_APPLICATION,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -173,7 +174,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyKeyEncoderOption_GHOSTTY_KEY_ENCODER_OPT_KEYPAD_KEY_APPLICATION,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -183,7 +184,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyKeyEncoderOption_GHOSTTY_KEY_ENCODER_OPT_IGNORE_KEYPAD_WITH_NUMLOCK,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -193,7 +194,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyKeyEncoderOption_GHOSTTY_KEY_ENCODER_OPT_ALT_ESC_PREFIX,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -203,7 +204,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyKeyEncoderOption_GHOSTTY_KEY_ENCODER_OPT_MODIFY_OTHER_KEYS_STATE_2,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -214,7 +215,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyKeyEncoderOption_GHOSTTY_KEY_ENCODER_OPT_KITTY_FLAGS,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -224,7 +225,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyKeyEncoderOption_GHOSTTY_KEY_ENCODER_OPT_MACOS_OPTION_AS_ALT,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -257,7 +258,7 @@ impl<'alloc> Event<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator) -> Result<Self> {
         let mut raw: ffi::GhosttyKeyEvent_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_key_event_new(alloc, &mut raw) };
+        let result = unsafe { ffi::ghostty_key_event_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -267,6 +268,7 @@ impl<'alloc> Event<'alloc> {
         self
     }
 
+    #[must_use]
     pub fn action(&self) -> Action {
         Action::try_from(unsafe { ffi::ghostty_key_event_get_action(self.0.as_raw()) })
             .unwrap_or(Action::Press)
@@ -277,6 +279,7 @@ impl<'alloc> Event<'alloc> {
         self
     }
 
+    #[must_use]
     pub fn key(&self) -> Key {
         Key::try_from(unsafe { ffi::ghostty_key_event_get_key(self.0.as_raw()) })
             .unwrap_or(Key::Unidentified)
@@ -287,6 +290,7 @@ impl<'alloc> Event<'alloc> {
         self
     }
 
+    #[must_use]
     pub fn mods(&self) -> Mods {
         Mods::from_bits_retain(unsafe { ffi::ghostty_key_event_get_mods(self.0.as_raw()) })
     }
@@ -296,6 +300,7 @@ impl<'alloc> Event<'alloc> {
         self
     }
 
+    #[must_use]
     pub fn consumed_mods(&self) -> Mods {
         Mods::from_bits_retain(unsafe { ffi::ghostty_key_event_get_consumed_mods(self.0.as_raw()) })
     }
@@ -305,6 +310,7 @@ impl<'alloc> Event<'alloc> {
         self
     }
 
+    #[must_use]
     pub fn is_composing(&self) -> bool {
         unsafe { ffi::ghostty_key_event_get_composing(self.0.as_raw()) }
     }
@@ -312,10 +318,10 @@ impl<'alloc> Event<'alloc> {
     pub fn set_utf8(&mut self, text: Option<&str>) -> &mut Self {
         match text {
             Some(text) => unsafe {
-                ffi::ghostty_key_event_set_utf8(self.0.as_raw(), text.as_ptr().cast(), text.len())
+                ffi::ghostty_key_event_set_utf8(self.0.as_raw(), text.as_ptr().cast(), text.len());
             },
             None => unsafe {
-                ffi::ghostty_key_event_set_utf8(self.0.as_raw(), std::ptr::null(), 0)
+                ffi::ghostty_key_event_set_utf8(self.0.as_raw(), std::ptr::null(), 0);
             },
         }
         self
@@ -323,7 +329,7 @@ impl<'alloc> Event<'alloc> {
 
     pub fn utf8(&mut self) -> Option<&str> {
         let mut len = 0usize;
-        let ptr = unsafe { ffi::ghostty_key_event_get_utf8(self.0.as_raw(), &mut len) };
+        let ptr = unsafe { ffi::ghostty_key_event_get_utf8(self.0.as_raw(), &raw mut len) };
         if ptr.is_null() {
             return None;
         }
@@ -337,9 +343,13 @@ impl<'alloc> Event<'alloc> {
         self
     }
 
+    #[must_use]
     pub fn unshifted_codepoint(&self) -> char {
-        char::from_u32(unsafe { ffi::ghostty_key_event_get_unshifted_codepoint(self.0.as_raw()) })
-            .expect("a valid Unicode codepoint")
+        unsafe {
+            char::from_u32_unchecked(ffi::ghostty_key_event_get_unshifted_codepoint(
+                self.0.as_raw(),
+            ))
+        }
     }
 }
 

@@ -27,6 +27,7 @@ use crate::ffi;
 ///     mode and inject commands
 ///
 /// This check is conservative and considers data unsafe regardless of current terminal state.
+#[must_use] 
 pub fn is_safe(data: &str) -> bool {
     unsafe { ffi::ghostty_paste_is_safe(data.as_ptr().cast(), data.len()) }
 }

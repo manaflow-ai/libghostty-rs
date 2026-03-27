@@ -291,7 +291,7 @@ fn render_terminal<'alloc>(
     // can be read from it via a shared reference, or it can be moved
     // to point at the next row via a mutable reference.
     let mut y = PADDING;
-    let mut row_it = row_it.update(&snapshot)?;
+    let mut row_it = row_it.update(snapshot)?;
 
     // For convenience, `next` gives you the same iteration back only
     // as a shared pointer, so you can simultaneously iterate through

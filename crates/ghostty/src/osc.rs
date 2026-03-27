@@ -38,7 +38,7 @@ impl<'alloc> Parser<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator) -> Result<Self, Error> {
         let mut raw: ffi::GhosttyOscParser_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_osc_new(alloc, &mut raw) };
+        let result = unsafe { ffi::ghostty_osc_new(alloc, &raw mut raw) };
         from_result(result)?;
         let ptr = NonNull::new(raw).ok_or(Error::OutOfMemory)?;
         Ok(Self {
@@ -76,6 +76,7 @@ pub struct Command<'p, 'alloc> {
 }
 
 impl Command<'_, '_> {
+    #[must_use] 
     pub fn command_type(&self) -> ffi::GhosttyOscCommandType {
         unsafe { ffi::ghostty_osc_command_type(self.ptr) }
     }

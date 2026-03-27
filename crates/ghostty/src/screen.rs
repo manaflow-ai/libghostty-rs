@@ -33,18 +33,18 @@ pub struct GridRef<'t> {
     pub(crate) _phan: PhantomData<&'t ffi::GhosttyTerminal>,
 }
 
-impl<'t> GridRef<'t> {
+impl GridRef<'_> {
     /// Get the row from a grid reference.
     pub fn row(&self) -> Result<Row> {
         let mut v = ffi::GhosttyRow::default();
-        let result = unsafe { ffi::ghostty_grid_ref_row(std::ptr::from_ref(&self.inner), &mut v) };
+        let result = unsafe { ffi::ghostty_grid_ref_row(std::ptr::from_ref(&self.inner), &raw mut v) };
         from_result(result)?;
         Ok(Row(v))
     }
     /// Get the cell from a grid reference.
     pub fn cell(&self) -> Result<Cell> {
         let mut v = ffi::GhosttyCell::default();
-        let result = unsafe { ffi::ghostty_grid_ref_cell(std::ptr::from_ref(&self.inner), &mut v) };
+        let result = unsafe { ffi::ghostty_grid_ref_cell(std::ptr::from_ref(&self.inner), &raw mut v) };
         from_result(result)?;
         Ok(Cell(v))
     }
@@ -52,7 +52,7 @@ impl<'t> GridRef<'t> {
     pub fn style(&self) -> Result<Style> {
         let mut v = ffi::GhosttyStyle::default();
         let result =
-            unsafe { ffi::ghostty_grid_ref_style(std::ptr::from_ref(&self.inner), &mut v) };
+            unsafe { ffi::ghostty_grid_ref_style(std::ptr::from_ref(&self.inner), &raw mut v) };
         from_result(result)?;
         Style::try_from(v)
     }
@@ -75,7 +75,7 @@ impl<'t> GridRef<'t> {
                 std::ptr::from_ref(&self.inner),
                 std::ptr::from_mut(buf).cast(),
                 buf.len(),
-                &mut len,
+                &raw mut len,
             )
         };
         from_result_with_len(result, len)

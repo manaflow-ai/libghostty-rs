@@ -21,6 +21,8 @@
 //! All `libghostty-vt` objects are **not** thread-safe, and have been marked
 //! `!Send + !Sync` accordingly. The expectation is for them to be managed
 //! by a single thread, that may communicate with other threads via channels.
+#![warn(clippy::pedantic)]
+#![allow(clippy::missing_errors_doc)] // TODO
 pub use ghostty_sys as ffi;
 
 pub mod alloc;

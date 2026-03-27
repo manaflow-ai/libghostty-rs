@@ -1,6 +1,6 @@
 //! Managing [render states](RenderState) of the terminal.
 
-use std::{marker::PhantomData, mem::MaybeUninit};
+use std::{convert::Into, marker::PhantomData, mem::MaybeUninit};
 
 use crate::{
     alloc::{Allocator, Object},
@@ -256,7 +256,7 @@ impl<'alloc> RenderState<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator) -> Result<Self> {
         let mut raw: ffi::GhosttyRenderState_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_render_state_new(alloc, &mut raw) };
+        let result = unsafe { ffi::ghostty_render_state_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -275,7 +275,7 @@ impl Drop for RenderState<'_> {
     }
 }
 
-impl<'alloc, 's> Snapshot<'alloc, 's> {
+impl Snapshot<'_, '_> {
     fn get<T>(&self, tag: ffi::GhosttyRenderStateData) -> Result<T> {
         let mut value = MaybeUninit::<T>::zeroed();
         let result = unsafe {
@@ -287,7 +287,7 @@ impl<'alloc, 's> Snapshot<'alloc, 's> {
         Ok(unsafe { value.assume_init() })
     }
 
-    fn set<T>(&self, tag: ffi::GhosttyRenderStateOption, value: T) -> Result<()> {
+    fn set<T>(&self, tag: ffi::GhosttyRenderStateOption, value: &T) -> Result<()> {
         let result = unsafe {
             ffi::ghostty_render_state_set(self.0.0.as_raw(), tag, std::ptr::from_ref(&value).cast())
         };
@@ -374,7 +374,7 @@ impl<'alloc, 's> Snapshot<'alloc, 's> {
             ..Default::default()
         };
         let result =
-            unsafe { ffi::ghostty_render_state_colors_get(self.0.0.as_raw(), &mut colors) };
+            unsafe { ffi::ghostty_render_state_colors_get(self.0.0.as_raw(), &raw mut colors) };
         from_result(result)?;
 
         Ok(Colors {
@@ -385,14 +385,14 @@ impl<'alloc, 's> Snapshot<'alloc, 's> {
             } else {
                 None
             },
-            palette: colors.palette.map(|c| c.into()),
+            palette: colors.palette.map(Into::into),
         })
     }
 
     pub fn set_dirty(&self, dirty: Dirty) -> Result<()> {
         self.set(
             ffi::GhosttyRenderStateOption_GHOSTTY_RENDER_STATE_OPTION_DIRTY,
-            ffi::GhosttyRenderStateDirty::from(dirty),
+            &ffi::GhosttyRenderStateDirty::from(dirty),
         )
     }
 }
@@ -410,7 +410,7 @@ impl<'alloc> RowIterator<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator) -> Result<Self> {
         let mut raw: ffi::GhosttyRenderStateRowIterator_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_render_state_row_iterator_new(alloc, &mut raw) };
+        let result = unsafe { ffi::ghostty_render_state_row_iterator_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -441,7 +441,7 @@ impl Drop for RowIterator<'_> {
     }
 }
 
-impl<'alloc, 's> RowIteration<'alloc, 's> {
+impl RowIteration<'_, '_> {
     // Can't actually implement Iterator - this is lending.
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Option<&Self> {
@@ -463,7 +463,7 @@ impl<'alloc, 's> RowIteration<'alloc, 's> {
         Ok(unsafe { value.assume_init() })
     }
 
-    fn set<T>(&self, tag: ffi::GhosttyRenderStateRowOption, value: T) -> Result<()> {
+    fn set<T>(&self, tag: ffi::GhosttyRenderStateRowOption, value: &T) -> Result<()> {
         let result = unsafe {
             ffi::ghostty_render_state_row_set(
                 self.iter.0.as_raw(),
@@ -485,7 +485,7 @@ impl<'alloc, 's> RowIteration<'alloc, 's> {
     pub fn set_dirty(&self, dirty: bool) -> Result<()> {
         self.set(
             ffi::GhosttyRenderStateRowOption_GHOSTTY_RENDER_STATE_ROW_OPTION_DIRTY,
-            dirty,
+            &dirty,
         )
     }
 }
@@ -503,7 +503,7 @@ impl<'alloc> CellIterator<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator) -> Result<Self> {
         let mut raw: ffi::GhosttyRenderStateRowCells_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_render_state_row_cells_new(alloc, &mut raw) };
+        let result = unsafe { ffi::ghostty_render_state_row_cells_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -534,7 +534,7 @@ impl Drop for CellIterator<'_> {
     }
 }
 
-impl<'alloc, 's> CellIteration<'alloc, 's> {
+impl CellIteration<'_, '_> {
     // Can't actually implement Iterator - this is lending.
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Option<&Self> {

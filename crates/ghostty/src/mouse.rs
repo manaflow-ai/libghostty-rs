@@ -1,6 +1,6 @@
 //! Encoding mouse events into terminal escape sequences.
 //!
-//! Supports X10, UTF-8, SGR, URxvt, and SGR-Pixels mouse protocols.
+//! Supports X10, UTF-8, SGR, urxvt, and SGR-Pixels mouse protocols.
 //!
 //! # Basic Usage
 //!
@@ -47,7 +47,7 @@ impl<'alloc> Encoder<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator) -> Result<Self> {
         let mut raw: ffi::GhosttyMouseEncoder_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_mouse_encoder_new(alloc, &mut raw) };
+        let result = unsafe { ffi::ghostty_mouse_encoder_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -113,7 +113,7 @@ impl<'alloc> Encoder<'alloc> {
                 event.0.as_raw(),
                 buf.as_mut_ptr().cast(),
                 buf.len(),
-                &mut written,
+                &raw mut written,
             )
         };
         from_result_with_len(result, written)
@@ -128,7 +128,7 @@ impl<'alloc> Encoder<'alloc> {
             ffi::ghostty_mouse_encoder_setopt_from_terminal(
                 self.0.as_raw(),
                 terminal.inner.as_raw(),
-            )
+            );
         }
         self
     }
@@ -138,7 +138,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_EVENT,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -148,7 +148,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_EVENT,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -159,7 +159,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_SIZE,
                 std::ptr::from_ref(&raw).cast(),
-            )
+            );
         }
         self
     }
@@ -169,7 +169,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_ANY_BUTTON_PRESSED,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -179,7 +179,7 @@ impl<'alloc> Encoder<'alloc> {
             self.setopt(
                 ffi::GhosttyMouseEncoderOption_GHOSTTY_MOUSE_ENCODER_OPT_TRACK_LAST_CELL,
                 std::ptr::from_ref(&value).cast(),
-            )
+            );
         }
         self
     }
@@ -220,7 +220,7 @@ impl<'alloc> Event<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator) -> Result<Self> {
         let mut raw: ffi::GhosttyMouseEvent_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_mouse_event_new(alloc, &mut raw) };
+        let result = unsafe { ffi::ghostty_mouse_event_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -228,12 +228,13 @@ impl<'alloc> Event<'alloc> {
     /// Set the event action.
     pub fn set_action(&mut self, action: Action) -> &mut Self {
         unsafe {
-            ffi::ghostty_mouse_event_set_action(self.0.as_raw(), action as ffi::GhosttyMouseAction)
+            ffi::ghostty_mouse_event_set_action(self.0.as_raw(), action as ffi::GhosttyMouseAction);
         }
         self
     }
 
     /// Get the event action.
+    #[must_use]
     pub fn action(&self) -> Action {
         unsafe { ffi::ghostty_mouse_event_get_action(self.0.as_raw()) }
             .try_into()
@@ -247,7 +248,7 @@ impl<'alloc> Event<'alloc> {
                 ffi::ghostty_mouse_event_set_button(
                     self.0.as_raw(),
                     button as ffi::GhosttyMouseButton,
-                )
+                );
             }
         } else {
             unsafe { ffi::ghostty_mouse_event_clear_button(self.0.as_raw()) }
@@ -256,10 +257,11 @@ impl<'alloc> Event<'alloc> {
     }
 
     /// Get the event button.
+    #[must_use]
     pub fn button(&self) -> Option<Button> {
         let mut button: ffi::GhosttyMouseButton = 0;
         let has_button =
-            unsafe { ffi::ghostty_mouse_event_get_button(self.0.as_raw(), &mut button) };
+            unsafe { ffi::ghostty_mouse_event_get_button(self.0.as_raw(), &raw mut button) };
         if has_button {
             Some(button.try_into().unwrap_or(Button::Unknown))
         } else {
@@ -274,10 +276,9 @@ impl<'alloc> Event<'alloc> {
     }
 
     /// Get keyboard modifiers held during the event.
+    #[must_use]
     pub fn mods(&self) -> key::Mods {
-        key::Mods::from_bits_retain(
-            unsafe { ffi::ghostty_mouse_event_get_mods(self.0.as_raw()) }.into(),
-        )
+        key::Mods::from_bits_retain(unsafe { ffi::ghostty_mouse_event_get_mods(self.0.as_raw()) })
     }
 
     /// Set the event position in surface-space pixels.
@@ -287,6 +288,7 @@ impl<'alloc> Event<'alloc> {
     }
 
     /// Get the event position in surface-space pixels.
+    #[must_use]
     pub fn position(&self) -> Position {
         unsafe { ffi::ghostty_mouse_event_get_position(self.0.as_raw()) }
     }

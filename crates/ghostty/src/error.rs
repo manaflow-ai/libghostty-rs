@@ -32,7 +32,6 @@ pub(crate) fn from_result(code: ffi::GhosttyResult) -> Result<()> {
     match code {
         ffi::GhosttyResult_GHOSTTY_SUCCESS => Ok(()),
         ffi::GhosttyResult_GHOSTTY_OUT_OF_MEMORY => Err(Error::OutOfMemory),
-        ffi::GhosttyResult_GHOSTTY_INVALID_VALUE => Err(Error::InvalidValue),
         ffi::GhosttyResult_GHOSTTY_OUT_OF_SPACE => Err(Error::OutOfSpace { required: 0 }),
         _ => Err(Error::InvalidValue),
     }
@@ -42,7 +41,6 @@ pub(crate) fn from_result_with_len(code: ffi::GhosttyResult, len: usize) -> Resu
     match code {
         ffi::GhosttyResult_GHOSTTY_SUCCESS => Ok(len),
         ffi::GhosttyResult_GHOSTTY_OUT_OF_MEMORY => Err(Error::OutOfMemory),
-        ffi::GhosttyResult_GHOSTTY_INVALID_VALUE => Err(Error::InvalidValue),
         ffi::GhosttyResult_GHOSTTY_OUT_OF_SPACE => Err(Error::OutOfSpace { required: len }),
         _ => Err(Error::InvalidValue),
     }

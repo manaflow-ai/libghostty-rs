@@ -59,7 +59,7 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
         let result = unsafe {
             ffi::ghostty_formatter_terminal_new(
                 alloc,
-                &mut raw,
+                &raw mut raw,
                 terminal.inner.as_raw(),
                 opts.into(),
             )
@@ -139,7 +139,7 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
         match from_result(result) {
             Err(Error::OutOfSpace { .. }) => Ok(len),
             Err(e) => Err(e),
-            Ok(_) => Err(Error::InvalidValue),
+            Ok(()) => Err(Error::InvalidValue),
         }
     }
 }

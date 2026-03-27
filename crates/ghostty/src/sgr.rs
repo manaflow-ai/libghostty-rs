@@ -59,7 +59,7 @@ impl<'alloc> Parser<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::GhosttyAllocator) -> Result<Self> {
         let mut raw: ffi::GhosttySgrParser_ptr = std::ptr::null_mut();
-        let result = unsafe { ffi::ghostty_sgr_new(alloc, &mut raw) };
+        let result = unsafe { ffi::ghostty_sgr_new(alloc, &raw mut raw) };
         from_result(result)?;
         let ptr = NonNull::new(raw).ok_or(Error::OutOfMemory)?;
         Ok(Self {
@@ -111,9 +111,10 @@ impl<'alloc> Parser<'alloc> {
     ///
     /// This cannot be expressed as a regular iterator since the returned
     /// attribute borrows memory from the parser directly.
-    pub fn next<'p>(&'p mut self) -> Result<Option<Attribute<'p>>> {
+    #[allow(clippy::should_implement_trait)] // Normal iterators can't lend
+    pub fn next(&mut self) -> Result<Option<Attribute<'_>>> {
         let mut raw_attr = ffi::GhosttySgrAttribute::default();
-        let has_next = unsafe { ffi::ghostty_sgr_next(self.ptr.as_ptr(), &mut raw_attr) };
+        let has_next = unsafe { ffi::ghostty_sgr_next(self.ptr.as_ptr(), &raw mut raw_attr) };
         if has_next {
             // This shouldn't really *ever* fail, so the fact it failed
             // suggests we should stop anyways.
