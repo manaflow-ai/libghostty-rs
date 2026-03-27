@@ -24,6 +24,7 @@ use crate::{
 /// One example of a custom allocator that *does* have a `'static`
 /// lifetime is Rust's own default allocator, which can also be used
 /// within libghostty as [`Allocator::GLOBAL`].
+#[derive(Debug)]
 pub struct Allocator<'ctx, Ctx: 'ctx = ()> {
     pub(crate) inner: GhosttyAllocator,
     _phan: PhantomData<&'ctx Ctx>,
@@ -57,6 +58,7 @@ impl<T> Object<'_, T> {
 }
 
 /// Bytes allocated by libghostty, possibly using a custom allocator.
+#[derive(Debug)]
 pub struct Bytes<'alloc> {
     ptr: NonNull<u8>,
     len: usize,

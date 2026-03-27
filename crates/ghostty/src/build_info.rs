@@ -59,11 +59,21 @@ fn build_info<T>(tag: ffi::GhosttyBuildInfo) -> Result<T> {
     Ok(unsafe { value.assume_init() })
 }
 
+/// The optimization mode libghostty is compiled with.
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, int_enum::IntEnum)]
 pub enum OptimizeMode {
+    /// Debug mode.
+    ///
+    /// Very slow with all safety checks enabled.
     Debug = ffi::GhosttyOptimizeMode_GHOSTTY_OPTIMIZE_DEBUG,
+    /// Release mode optimized for safety.
+    ///
+    /// Faster than debug due to better code generation,
+    /// but still very slow due to active safety checks.
     ReleaseSafe = ffi::GhosttyOptimizeMode_GHOSTTY_OPTIMIZE_RELEASE_SAFE,
+    /// Release mode optimized for size.
     ReleaseSmall = ffi::GhosttyOptimizeMode_GHOSTTY_OPTIMIZE_RELEASE_SMALL,
+    /// Release mode optimized for speed.
     ReleaseFast = ffi::GhosttyOptimizeMode_GHOSTTY_OPTIMIZE_RELEASE_FAST,
 }

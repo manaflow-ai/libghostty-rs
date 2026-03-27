@@ -105,6 +105,7 @@ pub use ffi::GhosttySizeReportSize as SizeReportSize;
 /// assert_eq!(bell_count.get(), 2);
 /// # Ok(())}
 /// ```
+#[derive(Debug)]
 pub struct Terminal<'alloc: 'cb, 'cb> {
     pub(crate) inner: Object<'alloc, ffi::GhosttyTerminal>,
     vtable: VTable<'alloc, 'cb>,
@@ -486,22 +487,25 @@ impl From<ScrollViewport> for ffi::GhosttyTerminalScrollViewport {
 pub struct Mode(pub ffi::GhosttyMode);
 
 impl Mode {
+    #![expect(missing_docs, reason = "no upstream documentation provided")]
     const ANSI_BIT: u16 = 1 << 15;
 
+    /// Create a new mode from its numeric value and its kind.
     #[must_use]
-    pub const fn new(v: u16, ansi: bool) -> Self {
-        if ansi {
-            Self(v | Self::ANSI_BIT)
-        } else {
-            Self(v)
+    pub const fn new(v: u16, kind: ModeKind) -> Self {
+        match kind {
+            ModeKind::Ansi => Self(v | Self::ANSI_BIT),
+            ModeKind::Dec => Self(v),
         }
     }
 
+    /// The numeric value of the mode.
     #[must_use]
     pub fn value(self) -> u16 {
         (self.0) & 0x7fff
     }
 
+    /// The kind of the mode (DEC/ANSI).
     #[must_use]
     pub fn kind(self) -> ModeKind {
         if (self.0) & Self::ANSI_BIT > 0 {
@@ -511,52 +515,55 @@ impl Mode {
         }
     }
 
-    pub const KAM: Self = Self::new(2, true);
-    pub const INSERT: Self = Self::new(4, true);
-    pub const SRM: Self = Self::new(12, true);
-    pub const LINEFEED: Self = Self::new(20, true);
+    pub const KAM: Self = Self::new(2, ModeKind::Ansi);
+    pub const INSERT: Self = Self::new(4, ModeKind::Ansi);
+    pub const SRM: Self = Self::new(12, ModeKind::Ansi);
+    pub const LINEFEED: Self = Self::new(20, ModeKind::Ansi);
 
-    pub const DECCKM: Self = Self::new(1, false);
-    pub const _132_COLUMN: Self = Self::new(3, false);
-    pub const SLOW_SCROLL: Self = Self::new(4, false);
-    pub const REVERSE_COLORS: Self = Self::new(5, false);
-    pub const ORIGIN: Self = Self::new(6, false);
-    pub const WRAPAROUND: Self = Self::new(7, false);
-    pub const AUTOREPEAT: Self = Self::new(8, false);
-    pub const X10_MOUSE: Self = Self::new(9, false);
-    pub const CURSOR_BLINKING: Self = Self::new(12, false);
-    pub const CURSOR_VISIBLE: Self = Self::new(25, false);
-    pub const ENABLE_MODE3: Self = Self::new(40, false);
-    pub const REVERSE_WRAP: Self = Self::new(45, false);
-    pub const ALT_SCREEN_LEGACY: Self = Self::new(47, false);
-    pub const KEYPAD_KEYS: Self = Self::new(66, false);
-    pub const LEFT_RIGHT_MARGIN: Self = Self::new(69, false);
-    pub const NORMAL_MOUSE: Self = Self::new(1000, false);
-    pub const BUTTON_MOUSE: Self = Self::new(1002, false);
-    pub const ANY_MOUSE: Self = Self::new(1003, false);
-    pub const FOCUS_EVENT: Self = Self::new(1004, false);
-    pub const UTF8_MOUSE: Self = Self::new(1005, false);
-    pub const SGR_MOUSE: Self = Self::new(1006, false);
-    pub const ALT_SCROLL: Self = Self::new(1007, false);
-    pub const URXVT_MOUSE: Self = Self::new(1015, false);
-    pub const SGR_PIXELS_MOUSE: Self = Self::new(1016, false);
-    pub const NUMLOCK_KEYPAD: Self = Self::new(1035, false);
-    pub const ALT_ESC_PREFIX: Self = Self::new(1036, false);
-    pub const ALT_SENDS_ESC: Self = Self::new(1039, false);
-    pub const REVERSE_WRAP_EXT: Self = Self::new(1045, false);
-    pub const ALT_SCREEN: Self = Self::new(1047, false);
-    pub const SAVE_CURSOR: Self = Self::new(1048, false);
-    pub const ALT_SCREEN_SAVE: Self = Self::new(1049, false);
-    pub const BRACKETED_PASTE: Self = Self::new(2004, false);
-    pub const SYNC_OUTPUT: Self = Self::new(2026, false);
-    pub const GRAPHEME_CLUSTER: Self = Self::new(2027, false);
-    pub const COLOR_SCHEME_REPORT: Self = Self::new(2031, false);
-    pub const IN_BAND_RESIZE: Self = Self::new(2048, false);
+    pub const DECCKM: Self = Self::new(1, ModeKind::Dec);
+    pub const _132_COLUMN: Self = Self::new(3, ModeKind::Dec);
+    pub const SLOW_SCROLL: Self = Self::new(4, ModeKind::Dec);
+    pub const REVERSE_COLORS: Self = Self::new(5, ModeKind::Dec);
+    pub const ORIGIN: Self = Self::new(6, ModeKind::Dec);
+    pub const WRAPAROUND: Self = Self::new(7, ModeKind::Dec);
+    pub const AUTOREPEAT: Self = Self::new(8, ModeKind::Dec);
+    pub const X10_MOUSE: Self = Self::new(9, ModeKind::Dec);
+    pub const CURSOR_BLINKING: Self = Self::new(12, ModeKind::Dec);
+    pub const CURSOR_VISIBLE: Self = Self::new(25, ModeKind::Dec);
+    pub const ENABLE_MODE3: Self = Self::new(40, ModeKind::Dec);
+    pub const REVERSE_WRAP: Self = Self::new(45, ModeKind::Dec);
+    pub const ALT_SCREEN_LEGACY: Self = Self::new(47, ModeKind::Dec);
+    pub const KEYPAD_KEYS: Self = Self::new(66, ModeKind::Dec);
+    pub const LEFT_RIGHT_MARGIN: Self = Self::new(69, ModeKind::Dec);
+    pub const NORMAL_MOUSE: Self = Self::new(1000, ModeKind::Dec);
+    pub const BUTTON_MOUSE: Self = Self::new(1002, ModeKind::Dec);
+    pub const ANY_MOUSE: Self = Self::new(1003, ModeKind::Dec);
+    pub const FOCUS_EVENT: Self = Self::new(1004, ModeKind::Dec);
+    pub const UTF8_MOUSE: Self = Self::new(1005, ModeKind::Dec);
+    pub const SGR_MOUSE: Self = Self::new(1006, ModeKind::Dec);
+    pub const ALT_SCROLL: Self = Self::new(1007, ModeKind::Dec);
+    pub const URXVT_MOUSE: Self = Self::new(1015, ModeKind::Dec);
+    pub const SGR_PIXELS_MOUSE: Self = Self::new(1016, ModeKind::Dec);
+    pub const NUMLOCK_KEYPAD: Self = Self::new(1035, ModeKind::Dec);
+    pub const ALT_ESC_PREFIX: Self = Self::new(1036, ModeKind::Dec);
+    pub const ALT_SENDS_ESC: Self = Self::new(1039, ModeKind::Dec);
+    pub const REVERSE_WRAP_EXT: Self = Self::new(1045, ModeKind::Dec);
+    pub const ALT_SCREEN: Self = Self::new(1047, ModeKind::Dec);
+    pub const SAVE_CURSOR: Self = Self::new(1048, ModeKind::Dec);
+    pub const ALT_SCREEN_SAVE: Self = Self::new(1049, ModeKind::Dec);
+    pub const BRACKETED_PASTE: Self = Self::new(2004, ModeKind::Dec);
+    pub const SYNC_OUTPUT: Self = Self::new(2026, ModeKind::Dec);
+    pub const GRAPHEME_CLUSTER: Self = Self::new(2027, ModeKind::Dec);
+    pub const COLOR_SCHEME_REPORT: Self = Self::new(2031, ModeKind::Dec);
+    pub const IN_BAND_RESIZE: Self = Self::new(2048, ModeKind::Dec);
 }
 
+/// The kind of a terminal mode.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum ModeKind {
+    /// DEC terminal mode.
     Dec,
+    /// ANSI terminal mode.
     Ansi,
 }
 
@@ -570,9 +577,13 @@ impl From<Mode> for ffi::GhosttyMode {
 /// Filled by the [`Terminal::on_device_attributes`] callback in response
 /// to CSI c, CSI > c, or CSI = c queries. The terminal uses whichever
 /// sub-struct matches the request type.
+#[derive(Debug, Clone, Copy)]
 pub struct DeviceAttributes {
+    /// Primary device attributes (DA1).
     pub primary: PrimaryDeviceAttributes,
+    /// Secondary device attributes (DA2).
     pub secondary: SecondaryDeviceAttributes,
+    /// Tertiary device attributes (DA3).
     pub tertiary: TertiaryDeviceAttributes,
 }
 
@@ -589,12 +600,17 @@ impl From<DeviceAttributes> for ffi::GhosttyDeviceAttributes {
 /// Primary device attributes (DA1) response data.
 ///
 /// Returned as part of [`DeviceAttributes`] in response to a CSI c query.
+#[derive(Debug, Clone, Copy)]
 pub struct PrimaryDeviceAttributes(ffi::GhosttyDeviceAttributesPrimary);
 
 impl PrimaryDeviceAttributes {
+    /// Construct primary device attributes from a conformance level
+    /// and an array of device attribute features.
+    ///
+    /// # Panics
+    ///
+    /// **Panics** when more than 64 features are given.
     #[must_use]
-    // precondition is documented in DeviceAttributes
-    #[allow(clippy::missing_panics_doc)]
     pub fn new<const N: usize>(
         conformance_level: ConformanceLevel,
         features: [DeviceAttributeFeature; N],
@@ -618,11 +634,14 @@ impl From<PrimaryDeviceAttributes> for ffi::GhosttyDeviceAttributesPrimary {
     }
 }
 
+/// The level of conformance to the behavior of a specific or a family of
+/// physical terminal models.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ConformanceLevel(pub u16);
 
 impl ConformanceLevel {
-    #![allow(clippy::cast_possible_truncation)] // bindgen isn't perfect
+    #![allow(clippy::cast_possible_truncation, reason = "bindgen ain't perfect")]
+    #![expect(missing_docs, reason = "self-explanatory")]
     pub const VT100: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_VT100 as u16);
     pub const VT101: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_VT101 as u16);
     pub const VT102: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_VT102 as u16);
@@ -637,17 +656,23 @@ impl ConformanceLevel {
     pub const VT510: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_VT510 as u16);
     pub const VT520: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_VT520 as u16);
     pub const VT525: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_VT525 as u16);
+    /// Equivalent to a VT2xx terminal.
     pub const LEVEL_2: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_LEVEL_2 as u16);
+    /// Equivalent to a VT3xx terminal.
     pub const LEVEL_3: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_LEVEL_3 as u16);
+    /// Equivalent to a VT4xx terminal.
     pub const LEVEL_4: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_LEVEL_4 as u16);
+    /// Equivalent to a VT5xx terminal.
     pub const LEVEL_5: Self = Self(ffi::GHOSTTY_DA_CONFORMANCE_LEVEL_5 as u16);
 }
 
+/// A feature that a terminal can report to support.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DeviceAttributeFeature(pub u16);
 
 impl DeviceAttributeFeature {
-    #![allow(clippy::cast_possible_truncation)] // bindgen isn't perfect
+    #![expect(clippy::cast_possible_truncation, reason = "bindgen ain't perfect")]
+    #![expect(missing_docs, reason = "no upstream documentation provided")]
     pub const COLUMNS_132: Self = Self(ffi::GHOSTTY_DA_FEATURE_COLUMNS_132 as u16);
     pub const PRINTER: Self = Self(ffi::GHOSTTY_DA_FEATURE_PRINTER as u16);
     pub const REGIS: Self = Self(ffi::GHOSTTY_DA_FEATURE_REGIS as u16);
@@ -693,11 +718,13 @@ impl From<SecondaryDeviceAttributes> for ffi::GhosttyDeviceAttributesSecondary {
     }
 }
 
+/// The type of terminal device being emulated.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DeviceType(pub u16);
 
 impl DeviceType {
-    #![allow(clippy::cast_possible_truncation)] // bindgen isn't perfect
+    #![expect(clippy::cast_possible_truncation, reason = "bindgen ain't perfect")]
+    #![expect(missing_docs, reason = "self-explanatory")]
     pub const VT100: Self = Self(ffi::GHOSTTY_DA_DEVICE_TYPE_VT100 as u16);
     pub const VT220: Self = Self(ffi::GHOSTTY_DA_DEVICE_TYPE_VT220 as u16);
     pub const VT240: Self = Self(ffi::GHOSTTY_DA_DEVICE_TYPE_VT240 as u16);
@@ -784,7 +811,7 @@ macro_rules! handlers {
     } => {
         impl<'alloc, 'cb> $crate::terminal::Terminal<'alloc, 'cb> {$(
             $(#[$fmeta])*
-            $vis fn $name(&mut self, f: impl $fnty<'alloc, 'cb>) -> Result<&mut Self> {
+            $vis fn $name(&mut self, f: impl $fnty<'alloc, 'cb>) -> $crate::error::Result<&mut Self> {
                 unsafe extern "C" fn callback(
                     t: *mut $crate::ffi::GhosttyTerminal,
                     ud: *mut std::ffi::c_void,
@@ -793,24 +820,24 @@ macro_rules! handlers {
                     // SAFETY: We own the vtable, so it should never become invalid.
                     let vtable = unsafe { &mut *ud.cast::<VTable<'_, '_>>() };
 
-                    let obj = Object::new(t).expect("received null terminal ptr in callback - this is a bug!");
-                    let $t = Terminal::<'_, '_> {
+                    let obj = $crate::alloc::Object::new(t).expect("received null terminal ptr in callback - this is a bug!");
+                    let $t = $crate::terminal::Terminal::<'_, '_> {
                         inner: obj,
-                        vtable: Default::default(),
+                        vtable: ::core::default::Default::default(),
                     };
                     let $func = vtable.$name.as_deref_mut()
                         .expect("no handler set but callback is still called - this is a bug!");
                     let ret = $block;
 
                     // IMPORTANT: Do NOT let the destructor run.
-                    std::mem::forget($t);
+                    ::core::mem::forget($t);
                     ret
                 }
 
                 self.vtable.$name = Some(::std::boxed::Box::new(f));
 
                 self.set(
-                    ffi::GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_USERDATA,
+                    $crate::ffi::GhosttyTerminalOption_GHOSTTY_TERMINAL_OPT_USERDATA,
                     &self.vtable
                 )?;
 
@@ -819,18 +846,18 @@ macro_rules! handlers {
                 // :)
                 let callback_ptr: unsafe extern "C" fn(
                     *mut $crate::ffi::GhosttyTerminal,
-                    *mut std::ffi::c_void,
+                    *mut ::std::ffi::c_void,
                     $($rfty),*
                 ) $(-> $rawrty)? = callback;
 
                 let result = unsafe {
-                    ffi::ghostty_terminal_set(
+                    $crate::ffi::ghostty_terminal_set(
                         self.inner.as_raw(),
                         $crate::ffi::$tag,
-                        callback_ptr as *const std::ffi::c_void
+                        callback_ptr as *const ::std::ffi::c_void
                     )
                 };
-                from_result(result)?;
+                $crate::error::from_result(result)?;
                 Ok(self)
             }
         )*}
@@ -862,7 +889,13 @@ macro_rules! handlers {
             $($name: Option<::std::boxed::Box<dyn $fnty<'alloc, 'cb>>>),*
         }
 
-        impl<'alloc, 'cb> Default for VTable<'alloc, 'cb> {
+        impl ::core::fmt::Debug for VTable<'_, '_> {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+                f.write_str("VTable {..}")
+            }
+        }
+
+        impl ::core::default::Default for VTable<'_, '_> {
             fn default() -> Self {
                 Self {
                     $($name: None),*

@@ -27,6 +27,7 @@ pub use ffi::GhosttyMousePosition as Position;
 
 /// Mouse encoder that converts normalized mouse events into
 /// terminal escape sequences.
+#[derive(Debug)]
 pub struct Encoder<'alloc>(Object<'alloc, ffi::GhosttyMouseEncoder>);
 
 impl<'alloc> Encoder<'alloc> {
@@ -200,6 +201,7 @@ impl Drop for Encoder<'_> {
 
 /// Normalized mouse input event containing action, button, modifiers, and
 /// surface-space position.
+#[derive(Debug)]
 pub struct Event<'alloc>(Object<'alloc, ffi::GhosttyMouseEvent>);
 
 impl<'alloc> Event<'alloc> {
@@ -321,6 +323,7 @@ pub enum TrackingMode {
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, int_enum::IntEnum)]
 #[non_exhaustive]
+#[expect(missing_docs, reason = "missing upstream docs")]
 pub enum Format {
     X10 = ffi::GhosttyMouseFormat_GHOSTTY_MOUSE_FORMAT_X10,
     Utf8 = ffi::GhosttyMouseFormat_GHOSTTY_MOUSE_FORMAT_UTF8,
@@ -386,6 +389,7 @@ pub enum Action {
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, int_enum::IntEnum)]
 #[non_exhaustive]
+#[expect(missing_docs, reason = "self-explanatory")]
 pub enum Button {
     Unknown = ffi::GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_UNKNOWN,
     Left = ffi::GhosttyMouseButton_GHOSTTY_MOUSE_BUTTON_LEFT,

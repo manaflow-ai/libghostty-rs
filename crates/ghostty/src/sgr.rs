@@ -1,4 +1,4 @@
-//! Parsing and handling SGR (Select Graphic Rendition) escape sequences.
+//! Handling SGR (Select Graphic Rendition) escape sequences.
 
 use std::{marker::PhantomData, ptr::NonNull};
 
@@ -11,14 +11,16 @@ use crate::{
 
 /// SGR (Select Graphic Rendition) attribute parser.
 ///
-/// SGR sequences are the syntax used to set styling attributes such as bold, italic, underline,
-/// and colors for text in terminal emulators. For example, you may be familiar with sequences like
-/// `ESC[1;31m`. The 1;31 is the SGR attribute list.
+/// SGR sequences are the syntax used to set styling attributes such as bold,
+/// italic, underline, and colors for text in terminal emulators. For example,
+/// you may be familiar with sequences like `ESC[1;31m`. The 1;31 is the SGR
+/// attribute list.
 ///
-/// The parser processes SGR parameters from CSI sequences (e.g., `ESC[1;31m`) and returns
-/// individual text attributes like bold, italic, colors, etc. It supports both semicolon (`;`) and
-/// colon (`:`) separators, possibly mixed, and handles various color formats including 8-color,
-/// 16-color, 256-color, X11 named colors, and RGB in multiple formats.
+/// The parser processes SGR parameters from CSI sequences (e.g., `ESC[1;31m`)
+/// and returns individual text attributes like bold, italic, colors, etc. It
+/// supports both semicolon (`;`) and colon (`:`) separators, possibly mixed,
+/// and handles various color formats including 8-color, 16-color, 256-color,
+/// X11 named colors, and RGB in multiple formats.
 ///
 /// # Example
 /// ```rust
@@ -111,7 +113,10 @@ impl<'alloc> Parser<'alloc> {
     ///
     /// This cannot be expressed as a regular iterator since the returned
     /// attribute borrows memory from the parser directly.
-    #[allow(clippy::should_implement_trait)] // Normal iterators can't lend
+    #[expect(
+        clippy::should_implement_trait,
+        reason = "lending `next` cannot implement trait"
+    )]
     pub fn next(&mut self) -> Result<Option<Attribute<'_>>> {
         let mut raw_attr = ffi::GhosttySgrAttribute::default();
         let has_next = unsafe { ffi::ghostty_sgr_next(self.ptr.as_ptr(), &raw mut raw_attr) };
@@ -143,6 +148,7 @@ impl Drop for Parser<'_> {
 /// An SGR attribute.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
+#[expect(missing_docs, reason = "missing upstream docs")]
 pub enum Attribute<'p> {
     Unset,
     Unknown(Unknown<'p>),
@@ -220,9 +226,12 @@ impl Attribute<'_> {
     }
 }
 
+/// Unknown SGR attribute data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Unknown<'p> {
+    /// Full parameter list.
     pub full: &'p [u16],
+    /// Partial list where parsing encountered an unknown or invalid sequence.
     pub partial: &'p [u16],
 }
 

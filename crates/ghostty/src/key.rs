@@ -12,7 +12,7 @@
 //!     *  Set event properties (action, key, modifiers, etc.)
 //!     *  Encode with [`Encoder::encode_to_vec`] (with a growable `Vec` buffer)
 //!        or [`Encoder::encode`] (with a fixed byte buffer).
-#![allow(clippy::cast_possible_truncation)] // bindgen ain't perfect
+#![allow(clippy::cast_possible_truncation, reason = "bindgen ain't perfect")]
 use std::mem::MaybeUninit;
 
 use crate::{
@@ -24,6 +24,7 @@ use crate::{
 };
 
 /// Key encoder that converts key events into terminal escape sequences.
+#[derive(Debug)]
 pub struct Encoder<'alloc>(Object<'alloc, ffi::GhosttyKeyEncoder>);
 
 impl<'alloc> Encoder<'alloc> {
@@ -114,31 +115,13 @@ impl<'alloc> Encoder<'alloc> {
         let result = unsafe {
             ffi::ghostty_key_encoder_encode(
                 self.0.as_raw(),
-                event.0.as_raw(),
+                event.inner.as_raw(),
                 buf.as_mut_ptr().cast(),
                 buf.len(),
                 &raw mut written,
             )
         };
         from_result_with_len(result, written)
-    }
-
-    pub fn encode_len(&mut self, event: &Event) -> Result<usize> {
-        let mut written: usize = 0;
-        let result = unsafe {
-            ffi::ghostty_key_encoder_encode(
-                self.0.as_raw(),
-                event.0.as_raw(),
-                std::ptr::null_mut(),
-                0,
-                &raw mut written,
-            )
-        };
-        match from_result(result) {
-            Err(Error::OutOfSpace { .. }) => Ok(written),
-            Ok(()) => Ok(0),
-            Err(e) => Err(e),
-        }
     }
 
     /// Set encoder options from a terminal's current state.
@@ -239,7 +222,12 @@ impl Drop for Encoder<'_> {
 
 /// Keyboard input event containing information about the physical key pressed,
 /// modifiers, and generated text.
-pub struct Event<'alloc>(Object<'alloc, ffi::GhosttyKeyEvent>);
+#[derive(Debug)]
+pub struct Event<'alloc> {
+    inner: Object<'alloc, ffi::GhosttyKeyEvent>,
+    text: Option<String>,
+}
+
 impl<'alloc> Event<'alloc> {
     /// Create a new key event instance.
     pub fn new() -> Result<Self> {
@@ -260,94 +248,119 @@ impl<'alloc> Event<'alloc> {
         let mut raw: ffi::GhosttyKeyEvent_ptr = std::ptr::null_mut();
         let result = unsafe { ffi::ghostty_key_event_new(alloc, &raw mut raw) };
         from_result(result)?;
-        Ok(Self(Object::new(raw)?))
+        Ok(Self {
+            inner: Object::new(raw)?,
+            text: None,
+        })
     }
 
+    /// Set the key action (press, release, repeat).
     pub fn set_action(&mut self, action: Action) -> &mut Self {
-        unsafe { ffi::ghostty_key_event_set_action(self.0.as_raw(), action.into()) }
+        unsafe { ffi::ghostty_key_event_set_action(self.inner.as_raw(), action.into()) }
         self
     }
 
+    /// Get the key action (press, release, repeat).
     #[must_use]
     pub fn action(&self) -> Action {
-        Action::try_from(unsafe { ffi::ghostty_key_event_get_action(self.0.as_raw()) })
+        Action::try_from(unsafe { ffi::ghostty_key_event_get_action(self.inner.as_raw()) })
             .unwrap_or(Action::Press)
     }
 
+    /// Set the physical key code.
     pub fn set_key(&mut self, key: Key) -> &mut Self {
-        unsafe { ffi::ghostty_key_event_set_key(self.0.as_raw(), key.into()) }
+        unsafe { ffi::ghostty_key_event_set_key(self.inner.as_raw(), key.into()) }
         self
     }
 
+    /// Get the physical key code.
     #[must_use]
     pub fn key(&self) -> Key {
-        Key::try_from(unsafe { ffi::ghostty_key_event_get_key(self.0.as_raw()) })
+        Key::try_from(unsafe { ffi::ghostty_key_event_get_key(self.inner.as_raw()) })
             .unwrap_or(Key::Unidentified)
     }
 
+    /// Set the modifier keys bitmask.
     pub fn set_mods(&mut self, mods: Mods) -> &mut Self {
-        unsafe { ffi::ghostty_key_event_set_mods(self.0.as_raw(), mods.bits()) }
+        unsafe { ffi::ghostty_key_event_set_mods(self.inner.as_raw(), mods.bits()) }
         self
     }
 
+    /// Get the modifier keys bitmask.
     #[must_use]
     pub fn mods(&self) -> Mods {
-        Mods::from_bits_retain(unsafe { ffi::ghostty_key_event_get_mods(self.0.as_raw()) })
+        Mods::from_bits_retain(unsafe { ffi::ghostty_key_event_get_mods(self.inner.as_raw()) })
     }
 
+    /// Set the consumed modifiers bitmask.
     pub fn set_consumed_mods(&mut self, mods: Mods) -> &mut Self {
-        unsafe { ffi::ghostty_key_event_set_consumed_mods(self.0.as_raw(), mods.bits()) }
+        unsafe { ffi::ghostty_key_event_set_consumed_mods(self.inner.as_raw(), mods.bits()) }
         self
     }
 
+    /// Get the consumed modifiers bitmask.
     #[must_use]
     pub fn consumed_mods(&self) -> Mods {
-        Mods::from_bits_retain(unsafe { ffi::ghostty_key_event_get_consumed_mods(self.0.as_raw()) })
+        Mods::from_bits_retain(unsafe {
+            ffi::ghostty_key_event_get_consumed_mods(self.inner.as_raw())
+        })
     }
 
+    /// Set whether the key event is part of a composition sequence.
     pub fn set_composing(&mut self, composing: bool) -> &mut Self {
-        unsafe { ffi::ghostty_key_event_set_composing(self.0.as_raw(), composing) }
+        unsafe { ffi::ghostty_key_event_set_composing(self.inner.as_raw(), composing) }
         self
     }
 
+    /// Get whether the key event is part of a composition sequence.
     #[must_use]
     pub fn is_composing(&self) -> bool {
-        unsafe { ffi::ghostty_key_event_get_composing(self.0.as_raw()) }
+        unsafe { ffi::ghostty_key_event_get_composing(self.inner.as_raw()) }
     }
 
-    pub fn set_utf8(&mut self, text: Option<&str>) -> &mut Self {
-        match text {
+    /// Set the UTF-8 text generated by the key event.
+    ///
+    /// The event makes an internal copy of the text since the C API
+    /// may reuse it without any rigid lifetime guarantees.
+    pub fn set_utf8<S: Into<String>>(&mut self, text: Option<S>) -> &mut Self {
+        self.text = text.map(Into::into);
+
+        match &self.text {
             Some(text) => unsafe {
-                ffi::ghostty_key_event_set_utf8(self.0.as_raw(), text.as_ptr().cast(), text.len());
+                ffi::ghostty_key_event_set_utf8(
+                    self.inner.as_raw(),
+                    text.as_ptr().cast(),
+                    text.len(),
+                );
             },
             None => unsafe {
-                ffi::ghostty_key_event_set_utf8(self.0.as_raw(), std::ptr::null(), 0);
+                ffi::ghostty_key_event_set_utf8(self.inner.as_raw(), std::ptr::null(), 0);
             },
         }
         self
     }
 
+    /// Get the UTF-8 text generated by the key event.
     pub fn utf8(&mut self) -> Option<&str> {
-        let mut len = 0usize;
-        let ptr = unsafe { ffi::ghostty_key_event_get_utf8(self.0.as_raw(), &raw mut len) };
-        if ptr.is_null() {
-            return None;
-        }
-
-        let slice = unsafe { std::slice::from_raw_parts(ptr.cast(), len) };
-        Some(unsafe { std::str::from_utf8_unchecked(slice) })
+        // We actually sidestep the `ghostty_key_event_get_utf8` method to
+        // avoid unclear lifetimes. See `set_utf8`.
+        self.text.as_deref()
     }
 
+    /// Set the unshifted Unicode codepoint.
     pub fn set_unshifted_codepoint(&mut self, codepoint: char) -> &mut Self {
-        unsafe { ffi::ghostty_key_event_set_unshifted_codepoint(self.0.as_raw(), codepoint.into()) }
+        unsafe {
+            ffi::ghostty_key_event_set_unshifted_codepoint(self.inner.as_raw(), codepoint.into())
+        }
         self
     }
 
+    /// Get the unshifted Unicode codepoint.
     #[must_use]
     pub fn unshifted_codepoint(&self) -> char {
         unsafe {
             char::from_u32_unchecked(ffi::ghostty_key_event_get_unshifted_codepoint(
-                self.0.as_raw(),
+                self.inner.as_raw(),
             ))
         }
     }
@@ -355,13 +368,14 @@ impl<'alloc> Event<'alloc> {
 
 impl Drop for Event<'_> {
     fn drop(&mut self) {
-        unsafe { ffi::ghostty_key_event_free(self.0.as_raw()) }
+        unsafe { ffi::ghostty_key_event_free(self.inner.as_raw()) }
     }
 }
 
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, int_enum::IntEnum)]
 #[non_exhaustive]
+#[expect(missing_docs, reason = "self-explanatory")]
 pub enum Key {
     Unidentified = 0,
     Backquote = 1,

@@ -20,7 +20,7 @@ pub struct Formatter<'t, 'alloc: 'cb, 'cb: 't> {
 }
 
 /// Options for creating a terminal formatter.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FormatterOptions {
     /// Output format to emit.
     pub format: Format,
@@ -72,10 +72,10 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
         })
     }
 
-    // Run the formatter and return an allocated buffer with the output.
-    //
-    // Each call formats the current terminal state. The buffer is allocated
-    // using the provided allocator (or the default allocator if `None`).
+    /// Run the formatter and return an allocated buffer with the output.
+    ///
+    /// Each call formats the current terminal state. The buffer is allocated
+    /// using the provided allocator (or the default allocator if `None`).
     pub fn format_alloc<'a, 'ctx: 'a, Ctx>(
         &mut self,
         alloc: Option<&'a Allocator<'ctx, Ctx>>,

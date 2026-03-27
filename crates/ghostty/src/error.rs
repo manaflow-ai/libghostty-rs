@@ -1,17 +1,21 @@
 //! Error handling.
 use crate::ffi;
 
+/// Convenient alias for fallible return values from libghostty-vt.
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Possible errors libghostty-vt may return.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Error {
     /// Out of memory.
     OutOfMemory,
     /// Invalid value was specified or returned.
     InvalidValue,
     /// Ran out of space when writing to a buffer.
-    OutOfSpace { required: usize },
+    OutOfSpace {
+        /// Required minimum size of the buffer.
+        required: usize,
+    },
 }
 
 impl std::fmt::Display for Error {

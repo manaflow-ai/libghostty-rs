@@ -17,7 +17,16 @@ use crate::{
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Id(pub(crate) ffi::GhosttyStyleId);
 
-#[allow(clippy::struct_excessive_bools)]
+/// Terminal cell style attributes.
+///
+/// A style describes the visual attributes of a terminal cell, including
+/// foreground, background, and underline colors, as well as flags for bold,
+/// italic, underline, and other text decorations.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "style attributes should be just a bunch of bools"
+)]
+#[expect(missing_docs, reason = "self-explanatory")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Style {
     pub fg_color: StyleColor,
@@ -35,6 +44,9 @@ pub struct Style {
 }
 
 impl Style {
+    /// Check if a style is the default style.
+    ///
+    /// Returns true if all colors are unset and all flags are off.
     #[must_use]
     pub fn is_default(self) -> bool {
         let raw = ffi::GhosttyStyle::from(self);
@@ -55,10 +67,14 @@ impl Default for Style {
     }
 }
 
+/// A color used in a style attribute.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StyleColor {
+    /// Unset.
     None,
+    /// Palette index.
     Palette(PaletteIndex),
+    /// Direct RGB value.
     Rgb(RgbColor),
 }
 
@@ -79,28 +95,36 @@ pub struct RgbColor {
 pub struct PaletteIndex(pub u8);
 
 impl PaletteIndex {
-    pub const BLACK: PaletteIndex = PaletteIndex(0);
-    pub const RED: PaletteIndex = PaletteIndex(1);
-    pub const GREEN: PaletteIndex = PaletteIndex(2);
-    pub const YELLOW: PaletteIndex = PaletteIndex(3);
-    pub const BLUE: PaletteIndex = PaletteIndex(4);
-    pub const MAGENTA: PaletteIndex = PaletteIndex(5);
-    pub const CYAN: PaletteIndex = PaletteIndex(6);
-    pub const WHITE: PaletteIndex = PaletteIndex(7);
-    pub const BRIGHT_BLACK: PaletteIndex = PaletteIndex(8);
-    pub const BRIGHT_RED: PaletteIndex = PaletteIndex(9);
-    pub const BRIGHT_GREEN: PaletteIndex = PaletteIndex(10);
-    pub const BRIGHT_YELLOW: PaletteIndex = PaletteIndex(11);
-    pub const BRIGHT_BLUE: PaletteIndex = PaletteIndex(12);
-    pub const BRIGHT_MAGENTA: PaletteIndex = PaletteIndex(13);
-    pub const BRIGHT_CYAN: PaletteIndex = PaletteIndex(14);
-    pub const BRIGHT_WHITE: PaletteIndex = PaletteIndex(15);
+    #![expect(clippy::cast_possible_truncation, reason = "bindgen ain't perfect")]
+    #![expect(missing_docs, reason = "self-explanatory")]
+    pub const BLACK: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BLACK as u8);
+    pub const RED: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_RED as u8);
+    pub const GREEN: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_GREEN as u8);
+    pub const YELLOW: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_YELLOW as u8);
+    pub const BLUE: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BLUE as u8);
+    pub const MAGENTA: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_MAGENTA as u8);
+    pub const CYAN: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_CYAN as u8);
+    pub const WHITE: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_WHITE as u8);
+    pub const BRIGHT_BLACK: PaletteIndex =
+        PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BRIGHT_BLACK as u8);
+    pub const BRIGHT_RED: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BRIGHT_RED as u8);
+    pub const BRIGHT_GREEN: PaletteIndex =
+        PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BRIGHT_GREEN as u8);
+    pub const BRIGHT_YELLOW: PaletteIndex =
+        PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BRIGHT_YELLOW as u8);
+    pub const BRIGHT_BLUE: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BRIGHT_BLUE as u8);
+    pub const BRIGHT_MAGENTA: PaletteIndex =
+        PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BRIGHT_MAGENTA as u8);
+    pub const BRIGHT_CYAN: PaletteIndex = PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BRIGHT_CYAN as u8);
+    pub const BRIGHT_WHITE: PaletteIndex =
+        PaletteIndex(ffi::GHOSTTY_COLOR_NAMED_BRIGHT_WHITE as u8);
 }
 
 /// Underline style types.
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, int_enum::IntEnum)]
 #[non_exhaustive]
+#[expect(missing_docs, reason = "self-explanatory")]
 pub enum Underline {
     None = ffi::GhosttySgrUnderline_GHOSTTY_SGR_UNDERLINE_NONE,
     Single = ffi::GhosttySgrUnderline_GHOSTTY_SGR_UNDERLINE_SINGLE,
@@ -129,7 +153,7 @@ impl TryFrom<ffi::GhosttyStyle> for Style {
             invisible: value.invisible,
             strikethrough: value.strikethrough,
             overline: value.overline,
-            #[allow(clippy::cast_sign_loss)]
+            #[expect(clippy::cast_sign_loss, reason = "bindgen ain't perfect")]
             underline: Underline::try_from(value.underline as u32)
                 .map_err(|_| Error::InvalidValue)?,
         })
@@ -151,8 +175,7 @@ impl From<Style> for ffi::GhosttyStyle {
             invisible: value.invisible,
             strikethrough: value.strikethrough,
             overline: value.overline,
-            // I don't know why it's an i32 either, Clippy.
-            #[allow(clippy::cast_possible_wrap)]
+            #[expect(clippy::cast_possible_wrap, reason = "bindgen ain't perfect")]
             underline: u32::from(value.underline) as i32,
         }
     }

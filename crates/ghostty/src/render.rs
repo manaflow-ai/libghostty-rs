@@ -183,6 +183,7 @@ use crate::{
 ///     println!()
 /// }
 /// ```
+#[derive(Debug)]
 pub struct RenderState<'alloc>(Object<'alloc, ffi::GhosttyRenderState>);
 
 /// A snapshot of the render state after an update.
@@ -191,6 +192,7 @@ pub struct RenderState<'alloc>(Object<'alloc, ffi::GhosttyRenderState>);
 /// being accidentally modified after an update. If you find yourself unable
 /// to update the render state due to borrow checker errors, make sure to
 /// drop the active snapshot (and data that depends on it) before updating.
+#[derive(Debug)]
 pub struct Snapshot<'alloc, 's>(&'s mut RenderState<'alloc>);
 
 /// Opaque handle to a render-state row iterator.
@@ -198,6 +200,7 @@ pub struct Snapshot<'alloc, 's>(&'s mut RenderState<'alloc>);
 /// The row iterator must be [updated](RowIterator::update) from a snapshot of
 /// the render state in order to function, as most data is only accessible
 /// per [iteration](RowIteration).
+#[derive(Debug)]
 pub struct RowIterator<'alloc>(Object<'alloc, ffi::GhosttyRenderStateRowIterator>);
 
 /// An active iteration over the rows in the render state.
@@ -206,6 +209,7 @@ pub struct RowIterator<'alloc>(Object<'alloc, ffi::GhosttyRenderStateRowIterator
 /// with a snapshot of the render state. The borrow checker statically
 /// guarantees that all accesses of the data do not outlive the given snapshot,
 /// at the cost of added lifetime annotations.
+#[derive(Debug)]
 pub struct RowIteration<'alloc, 's> {
     iter: &'s mut RowIterator<'alloc>,
     // NOTE: While in theory the snapshot borrow should have its own
@@ -220,6 +224,7 @@ pub struct RowIteration<'alloc, 's> {
 /// The cell iterator must be [updated](CellIterator::update) from a
 /// [row](RowIteration) in order to function, as most data is only
 /// accessible per [iteration](CellIteration).
+#[derive(Debug)]
 pub struct CellIterator<'alloc>(Object<'alloc, ffi::GhosttyRenderStateRowCells>);
 
 /// An active iteration over the cells on a given row
@@ -229,6 +234,7 @@ pub struct CellIterator<'alloc>(Object<'alloc, ffi::GhosttyRenderStateRowCells>)
 /// at a given [row](RowIteration). The borrow checker statically
 /// guarantees that all accesses of the data do not outlive the given snapshot,
 /// at the cost of added lifetime annotations.
+#[derive(Debug)]
 pub struct CellIteration<'alloc, 's> {
     iter: &'s mut CellIterator<'alloc>,
     _phan: PhantomData<&'s RowIteration<'alloc, 's>>,
@@ -261,7 +267,20 @@ impl<'alloc> RenderState<'alloc> {
         Ok(Self(Object::new(raw)?))
     }
 
-    pub fn update<'s>(&'s mut self, terminal: &Terminal<'_, '_>) -> Result<Snapshot<'alloc, 's>> {
+    /// Update a render state instance from a terminal,
+    /// returning a new [snapshot](Snapshot).
+    ///
+    /// This consumes terminal/screen dirty state in the same way as the
+    /// internal render state update path.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err(Error::OutOfMemory)` if updating the state requires
+    /// allocation and that allocation fails.
+    pub fn update<'cb>(
+        &mut self,
+        terminal: &Terminal<'alloc, 'cb>,
+    ) -> Result<Snapshot<'alloc, '_>> {
         let result =
             unsafe { ffi::ghostty_render_state_update(self.0.as_raw(), terminal.inner.as_raw()) };
         from_result(result)?;
@@ -368,11 +387,9 @@ impl Snapshot<'_, '_> {
         }
     }
 
+    /// Get the current color information from a render state.
     pub fn colors(&self) -> Result<Colors> {
-        let mut colors = ffi::GhosttyRenderStateColors {
-            size: std::mem::size_of::<ffi::GhosttyRenderStateColors>(),
-            ..Default::default()
-        };
+        let mut colors = ffi::sized!(ffi::GhosttyRenderStateColors);
         let result =
             unsafe { ffi::ghostty_render_state_colors_get(self.0.0.as_raw(), &raw mut colors) };
         from_result(result)?;
@@ -389,6 +406,7 @@ impl Snapshot<'_, '_> {
         })
     }
 
+    /// Set dirty state.
     pub fn set_dirty(&self, dirty: Dirty) -> Result<()> {
         self.set(
             ffi::GhosttyRenderStateOption_GHOSTTY_RENDER_STATE_OPTION_DIRTY,
@@ -398,11 +416,16 @@ impl Snapshot<'_, '_> {
 }
 
 impl<'alloc> RowIterator<'alloc> {
+    /// Create a new row iterator instance.
     pub fn new() -> Result<Self> {
         // SAFETY: A NULL allocator is always valid
         unsafe { Self::new_inner(std::ptr::null()) }
     }
 
+    /// Create a new cell iterator instance with a custom allocator.
+    ///
+    /// See the [crate-level documentation](crate#memory-management-and-lifetimes)
+    /// regarding custom memory management and lifetimes.
     pub fn new_with_alloc<'ctx: 'alloc, Ctx>(alloc: &'alloc Allocator<'ctx, Ctx>) -> Result<Self> {
         // SAFETY: Borrow checking should forbid invalid allocators
         unsafe { Self::new_inner(alloc.to_raw()) }
@@ -415,10 +438,12 @@ impl<'alloc> RowIterator<'alloc> {
         Ok(Self(Object::new(raw)?))
     }
 
-    pub fn update<'s>(
-        &'s mut self,
-        snapshot: &'s Snapshot<'alloc, 's>,
-    ) -> Result<RowIteration<'alloc, 's>> {
+    /// Update the row iterator for a snapshot of the render state,
+    /// returning a new row iteration.
+    pub fn update(
+        &mut self,
+        snapshot: &'_ Snapshot<'alloc, '_>,
+    ) -> Result<RowIteration<'alloc, '_>> {
         let result = unsafe {
             ffi::ghostty_render_state_get(
                 snapshot.0.0.as_raw(),
@@ -442,8 +467,14 @@ impl Drop for RowIterator<'_> {
 }
 
 impl RowIteration<'_, '_> {
-    // Can't actually implement Iterator - this is lending.
-    #[allow(clippy::should_implement_trait)]
+    /// Move a row iteration to the next row.
+    ///
+    /// Returns `Some(row)` if the iteration moved successfully and row
+    /// data is available to read at the new position using `row`.
+    #[expect(
+        clippy::should_implement_trait,
+        reason = "lending `next` cannot implement trait"
+    )]
     pub fn next(&mut self) -> Option<&Self> {
         if unsafe { ffi::ghostty_render_state_row_iterator_next(self.iter.0.as_raw()) } {
             Some(self)
@@ -473,15 +504,19 @@ impl RowIteration<'_, '_> {
         };
         from_result(result)
     }
+
+    /// Whether the current row is dirty.
     pub fn dirty(&self) -> Result<bool> {
         self.get(ffi::GhosttyRenderStateRowData_GHOSTTY_RENDER_STATE_ROW_DATA_DIRTY)
     }
 
+    /// The raw row value.
     pub fn raw_row(&self) -> Result<Row> {
         self.get(ffi::GhosttyRenderStateRowData_GHOSTTY_RENDER_STATE_ROW_DATA_RAW)
             .map(Row)
     }
 
+    /// Set dirty state for the current row.
     pub fn set_dirty(&self, dirty: bool) -> Result<()> {
         self.set(
             ffi::GhosttyRenderStateRowOption_GHOSTTY_RENDER_STATE_ROW_OPTION_DIRTY,
@@ -491,11 +526,16 @@ impl RowIteration<'_, '_> {
 }
 
 impl<'alloc> CellIterator<'alloc> {
+    /// Create a new cell iterator instance.
     pub fn new() -> Result<Self> {
         // SAFETY: A NULL allocator is always valid
         unsafe { Self::new_inner(std::ptr::null()) }
     }
 
+    /// Create a new cell iterator instance with a custom allocator.
+    ///
+    /// See the [crate-level documentation](crate#memory-management-and-lifetimes)
+    /// regarding custom memory management and lifetimes.
     pub fn new_with_alloc<'ctx: 'alloc, Ctx>(alloc: &'alloc Allocator<'ctx, Ctx>) -> Result<Self> {
         // SAFETY: Borrow checking should forbid invalid allocators
         unsafe { Self::new_inner(alloc.to_raw()) }
@@ -508,10 +548,12 @@ impl<'alloc> CellIterator<'alloc> {
         Ok(Self(Object::new(raw)?))
     }
 
-    pub fn update<'s>(
-        &'s mut self,
-        row: &'s RowIteration<'alloc, 's>,
-    ) -> Result<CellIteration<'alloc, 's>> {
+    /// Update the cell iterator for a new row iteration,
+    /// returning a new cell iteration.
+    pub fn update(
+        &mut self,
+        row: &'_ RowIteration<'alloc, '_>,
+    ) -> Result<CellIteration<'alloc, '_>> {
         let result = unsafe {
             ffi::ghostty_render_state_row_get(
                 row.iter.0.as_raw(),
@@ -535,8 +577,14 @@ impl Drop for CellIterator<'_> {
 }
 
 impl CellIteration<'_, '_> {
-    // Can't actually implement Iterator - this is lending.
-    #[allow(clippy::should_implement_trait)]
+    /// Move a cell iteration to the next cell.
+    ///
+    /// Returns `Some(cell)` if the iteration moved successfully and cell
+    /// data is available to read at the new position using `cell`.
+    #[expect(
+        clippy::should_implement_trait,
+        reason = "lending `next` cannot implement trait"
+    )]
     pub fn next(&mut self) -> Option<&Self> {
         if unsafe { ffi::ghostty_render_state_row_cells_next(self.iter.0.as_raw()) } {
             Some(self)
@@ -545,6 +593,10 @@ impl CellIteration<'_, '_> {
         }
     }
 
+    /// Move a cell iteration to a specific column.
+    ///
+    /// Positions the iteration at the given x (column) index so that
+    /// subsequent reads return data for that cell.
     pub fn select(&mut self, x: u16) -> Result<()> {
         let result = unsafe { ffi::ghostty_render_state_row_cells_select(self.iter.0.as_raw(), x) };
         from_result(result)
@@ -563,11 +615,14 @@ impl CellIteration<'_, '_> {
         // SAFETY: Value should be initialized after successful call.
         Ok(unsafe { value.assume_init() })
     }
+
+    /// The raw cell value.
     pub fn raw_cell(&self) -> Result<Cell> {
         self.get(ffi::GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_RAW)
             .map(Cell)
     }
 
+    /// The style for the current cell.
     pub fn style(&self) -> Result<Style> {
         let mut value = ffi::sized!(ffi::GhosttyStyle);
         let result = unsafe {
@@ -581,6 +636,14 @@ impl CellIteration<'_, '_> {
         Style::try_from(value)
     }
 
+    /// The resolved foreground color of the cell.
+    ///
+    /// Resolves palette indices through the palette. Bold color handling
+    /// is not applied; the caller should handle bold styling separately.
+    ///
+    /// Returns `None` if the cell has no explicit foreground color, in which
+    /// case the caller should use whatever default foreground color it want
+    /// (e.g. the terminal foreground).
     pub fn fg_color(&self) -> Result<Option<RgbColor>> {
         let res = self.get::<ffi::GhosttyColorRgb>(
             ffi::GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_FG_COLOR,
@@ -592,6 +655,15 @@ impl CellIteration<'_, '_> {
         }
     }
 
+    /// The resolved background color of the cell.
+    ///
+    /// Flattens the three possible sources: [`Cell::bg_color_rgb`],
+    /// [`Cell::bg_color_palette`] (looked up in the palette), or the
+    /// style's [`bg_color`][Style::bg_color].
+    ///
+    /// Returns `None` if the cell has no background color, in which case the
+    /// caller should use whatever default background color it wants
+    /// (e.g. the terminal background).
     pub fn bg_color(&self) -> Result<Option<RgbColor>> {
         let res = self.get::<ffi::GhosttyColorRgb>(
             ffi::GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_BG_COLOR,
@@ -603,6 +675,9 @@ impl CellIteration<'_, '_> {
         }
     }
 
+    /// Get the grapheme codepoints.
+    ///
+    /// The base codepoint is placed first, followed by any extra codepoints.
     pub fn graphemes(&self) -> Result<Vec<char>> {
         let len = self.graphemes_len()?;
         let mut graphemes = vec!['\0'; len];
@@ -610,12 +685,19 @@ impl CellIteration<'_, '_> {
         Ok(graphemes)
     }
 
+    /// The total number of grapheme codepoints including the base codepoint.
+    ///
+    /// Returns 0 if the cell has no text.
     pub fn graphemes_len(&self) -> Result<usize> {
         self.get(
             ffi::GhosttyRenderStateRowCellsData_GHOSTTY_RENDER_STATE_ROW_CELLS_DATA_GRAPHEMES_LEN,
         )
     }
 
+    /// Write grapheme codepoints into a caller-provided buffer.
+    ///
+    /// The buffer must be at least [`CellIteration::graphemes_len`] elements.
+    /// The base codepoint is written first, followed by any extra codepoints.
     pub fn graphemes_buf(&self, buf: &mut [char]) -> Result<()> {
         let result = unsafe {
             ffi::ghostty_render_state_row_cells_get(
@@ -632,13 +714,18 @@ impl CellIteration<'_, '_> {
 // Auxiliary types
 //---------------------------
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// Cursor viewport position information.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CursorViewport {
+    /// Cursor viewport x position in cells.
     pub x: u16,
+    /// Cursor viewport y position in cells.
     pub y: u16,
+    /// Whether the cursor is on the tail of a wide character.
     pub at_wide_tail: bool,
 }
 
+/// Render-state color information.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Colors {
     /// The default/current background color for the render state.
@@ -663,13 +750,18 @@ pub enum Dirty {
     Full = ffi::GhosttyRenderStateDirty_GHOSTTY_RENDER_STATE_DIRTY_FULL,
 }
 
+/// Visual style of the cursor.
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, int_enum::IntEnum)]
 #[non_exhaustive]
 pub enum CursorVisualStyle {
+    /// Bar cursor (DECSCUSR 5, 6).
     Bar = ffi::GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BAR,
+    /// Block cursor (DECSCUSR 1, 2).
     Block = ffi::GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK,
+    /// Underline cursor (DECSCUSR 3, 4).
     Underline =
         ffi::GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_UNDERLINE,
+    /// Hollow block cursor.
     BlockHollow = ffi::GhosttyRenderStateCursorVisualStyle_GHOSTTY_RENDER_STATE_CURSOR_VISUAL_STYLE_BLOCK_HOLLOW,
 }

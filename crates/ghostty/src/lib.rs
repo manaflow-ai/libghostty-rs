@@ -22,7 +22,16 @@
 //! `!Send + !Sync` accordingly. The expectation is for them to be managed
 //! by a single thread, that may communicate with other threads via channels.
 #![warn(clippy::pedantic)]
-#![allow(clippy::missing_errors_doc)] // TODO
+#![warn(missing_docs)]
+#![warn(missing_debug_implementations)]
+#![warn(missing_copy_implementations)]
+#![warn(clippy::allow_attributes)]
+#![warn(clippy::allow_attributes_without_reason)]
+#![allow(
+    clippy::missing_errors_doc,
+    reason = "underlying C API may return any error outside of expected and
+    mitigated situations, and it is not feasible to document them all"
+)]
 pub use ghostty_sys as ffi;
 
 pub mod alloc;
