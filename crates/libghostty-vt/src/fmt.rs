@@ -15,7 +15,7 @@ use crate::{
 /// Formatter that formats terminal content.
 #[derive(Debug)]
 pub struct Formatter<'t, 'alloc: 'cb, 'cb: 't> {
-    inner: Object<'alloc, ffi::GhosttyFormatterImpl>,
+    inner: Object<'alloc, ffi::FormatterImpl>,
     _terminal: PhantomData<&'t Terminal<'alloc, 'cb>>,
 }
 
@@ -51,18 +51,13 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
     }
 
     unsafe fn new_inner(
-        alloc: *const ffi::GhosttyAllocator,
+        alloc: *const ffi::Allocator,
         terminal: &'t Terminal<'alloc, 'cb>,
         opts: FormatterOptions,
     ) -> Result<Self> {
-        let mut raw: ffi::GhosttyFormatter = std::ptr::null_mut();
+        let mut raw: ffi::Formatter = std::ptr::null_mut();
         let result = unsafe {
-            ffi::ghostty_formatter_terminal_new(
-                alloc,
-                &raw mut raw,
-                terminal.inner.as_raw(),
-                opts.into(),
-            )
+            ffi::formatter_terminal_new(alloc, &raw mut raw, terminal.inner.as_raw(), opts.into())
         };
         from_result(result)?;
 
@@ -89,7 +84,7 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
         let mut bytes = std::ptr::null_mut();
         let mut len = 0usize;
         let result = unsafe {
-            ffi::ghostty_formatter_format_alloc(
+            ffi::formatter_format_alloc(
                 self.inner.as_raw(),
                 alloc,
                 std::ptr::from_mut(&mut bytes),
@@ -110,7 +105,7 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
     pub fn format_buf(&mut self, buf: &mut [u8]) -> Result<usize> {
         let mut len = 0usize;
         let result = unsafe {
-            ffi::ghostty_formatter_format_buf(
+            ffi::formatter_format_buf(
                 self.inner.as_raw(),
                 std::ptr::from_mut(buf).cast(),
                 buf.len(),
@@ -128,7 +123,7 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
     pub fn format_len(&mut self) -> Result<usize> {
         let mut len = 0usize;
         let result = unsafe {
-            ffi::ghostty_formatter_format_buf(
+            ffi::formatter_format_buf(
                 self.inner.as_raw(),
                 std::ptr::null_mut(),
                 0,
@@ -146,17 +141,17 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
 
 impl Drop for Formatter<'_, '_, '_> {
     fn drop(&mut self) {
-        unsafe { ffi::ghostty_formatter_free(self.inner.as_raw()) }
+        unsafe { ffi::formatter_free(self.inner.as_raw()) }
     }
 }
 
-impl From<FormatterOptions> for ffi::GhosttyFormatterTerminalOptions {
+impl From<FormatterOptions> for ffi::FormatterTerminalOptions {
     fn from(value: FormatterOptions) -> Self {
         Self {
-            size: std::mem::size_of::<ffi::GhosttyFormatterTerminalOptions>(),
+            size: std::mem::size_of::<ffi::FormatterTerminalOptions>(),
             emit: value.format.into(),
             trim: value.trim,
-            extra: ffi::GhosttyFormatterTerminalExtra::default(),
+            extra: ffi::FormatterTerminalExtra::default(),
             unwrap: value.unwrap,
         }
     }
@@ -167,9 +162,9 @@ impl From<FormatterOptions> for ffi::GhosttyFormatterTerminalOptions {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, int_enum::IntEnum)]
 pub enum Format {
     /// Plain text (no escape sequences).
-    Plain = ffi::GhosttyFormatterFormat_GHOSTTY_FORMATTER_FORMAT_PLAIN,
+    Plain = ffi::FormatterFormat::PLAIN,
     /// VT sequences preserving colors, styles, URLs, etc.
-    Vt = ffi::GhosttyFormatterFormat_GHOSTTY_FORMATTER_FORMAT_VT,
+    Vt = ffi::FormatterFormat::VT,
     /// HTML with inline styles.
-    Html = ffi::GhosttyFormatterFormat_GHOSTTY_FORMATTER_FORMAT_HTML,
+    Html = ffi::FormatterFormat::HTML,
 }

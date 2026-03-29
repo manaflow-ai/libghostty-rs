@@ -43,7 +43,7 @@ impl Event {
     pub fn encode(self, buf: &mut [u8]) -> Result<usize> {
         let mut written: usize = 0;
         let result = unsafe {
-            ffi::ghostty_focus_encode(
+            ffi::focus_encode(
                 self.into(),
                 buf.as_mut_ptr().cast(),
                 buf.len(),
@@ -54,11 +54,11 @@ impl Event {
     }
 }
 
-impl From<Event> for ffi::GhosttyFocusEvent {
+impl From<Event> for ffi::FocusEvent::Type {
     fn from(value: Event) -> Self {
         match value {
-            Event::Gained => ffi::GhosttyFocusEvent_GHOSTTY_FOCUS_GAINED,
-            Event::Lost => ffi::GhosttyFocusEvent_GHOSTTY_FOCUS_LOST,
+            Event::Gained => ffi::FocusEvent::GAINED,
+            Event::Lost => ffi::FocusEvent::LOST,
         }
     }
 }
