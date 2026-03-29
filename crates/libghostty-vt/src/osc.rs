@@ -35,7 +35,7 @@ impl<'alloc> Parser<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::Allocator) -> Result<Self> {
         let mut raw: ffi::OscParser = std::ptr::null_mut();
-        let result = unsafe { ffi::osc_new(alloc, &raw mut raw) };
+        let result = unsafe { ffi::ghostty_osc_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -46,7 +46,7 @@ impl<'alloc> Parser<'alloc> {
     /// and returning the parser to its initial state. This is useful for
     /// reusing a parser instance or recovering from parse errors.
     pub fn reset(&mut self) {
-        unsafe { ffi::osc_reset(self.0.as_raw()) }
+        unsafe { ffi::ghostty_osc_reset(self.0.as_raw()) }
     }
 
     /// Parse the next byte in an OSC sequence.
@@ -58,7 +58,7 @@ impl<'alloc> Parser<'alloc> {
     /// When finished pumping the parser with bytes, call [`Parser::end`] to
     /// get the final result.
     pub fn next_byte(&mut self, byte: u8) {
-        unsafe { ffi::osc_next(self.0.as_raw(), byte) }
+        unsafe { ffi::ghostty_osc_next(self.0.as_raw(), byte) }
     }
 
     /// Finalize OSC parsing and retrieve the parsed command.
@@ -78,7 +78,7 @@ impl<'alloc> Parser<'alloc> {
     /// terminator information.
     #[expect(clippy::missing_panics_doc, reason = "internal invariant")]
     pub fn end<'p>(&'p mut self, terminator: u8) -> Command<'p, 'alloc> {
-        let raw = unsafe { ffi::osc_end(self.0.as_raw(), terminator) };
+        let raw = unsafe { ffi::ghostty_osc_end(self.0.as_raw(), terminator) };
         Command {
             inner: Object::new(raw).expect("command must not be null"),
             _parser: PhantomData,
@@ -88,7 +88,7 @@ impl<'alloc> Parser<'alloc> {
 
 impl Drop for Parser<'_> {
     fn drop(&mut self) {
-        unsafe { ffi::osc_free(self.0.as_raw()) }
+        unsafe { ffi::ghostty_osc_free(self.0.as_raw()) }
     }
 }
 
@@ -108,7 +108,7 @@ impl Command<'_, '_> {
     /// what data might be available from it.
     #[must_use]
     pub fn command_type(&self) -> CommandType {
-        CommandType::try_from(unsafe { ffi::osc_command_type(self.inner.as_raw()) })
+        CommandType::try_from(unsafe { ffi::ghostty_osc_command_type(self.inner.as_raw()) })
             .unwrap_or_default()
     }
 }

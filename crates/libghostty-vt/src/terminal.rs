@@ -154,7 +154,7 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
 
     unsafe fn new_inner(alloc: *const ffi::Allocator, opts: Options) -> Result<Self> {
         let mut raw: ffi::Terminal = std::ptr::null_mut();
-        let result = unsafe { ffi::terminal_new(alloc, &raw mut raw, opts.into()) };
+        let result = unsafe { ffi::ghostty_terminal_new(alloc, &raw mut raw, opts.into()) };
         from_result(result)?;
         Ok(Self {
             inner: Object::new(raw)?,
@@ -176,7 +176,7 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
     /// the primary goal is to keep the terminal state consistent and not allow
     /// malformed input to corrupt or crash.    
     pub fn vt_write(&mut self, data: &[u8]) {
-        unsafe { ffi::terminal_vt_write(self.inner.as_raw(), data.as_ptr(), data.len()) }
+        unsafe { ffi::ghostty_terminal_vt_write(self.inner.as_raw(), data.as_ptr(), data.len()) }
     }
 
     /// Resize the terminal to the given dimensions.
@@ -197,7 +197,7 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
         cell_height_px: u32,
     ) -> Result<()> {
         let result = unsafe {
-            ffi::terminal_resize(
+            ffi::ghostty_terminal_resize(
                 self.inner.as_raw(),
                 cols,
                 rows,
@@ -214,12 +214,12 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
     /// including modes, scrollback, scrolling region, and screen contents.
     /// The terminal dimensions are preserved.
     pub fn reset(&mut self) {
-        unsafe { ffi::terminal_reset(self.inner.as_raw()) }
+        unsafe { ffi::ghostty_terminal_reset(self.inner.as_raw()) }
     }
 
     /// Scroll the terminal viewport.
     pub fn scroll_viewport(&mut self, scroll: ScrollViewport) {
-        unsafe { ffi::terminal_scroll_viewport(self.inner.as_raw(), scroll.into()) }
+        unsafe { ffi::ghostty_terminal_scroll_viewport(self.inner.as_raw(), scroll.into()) }
     }
 
     /// Resolve a point in the terminal grid to a grid reference.
@@ -240,8 +240,9 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
     /// use cases.
     pub fn grid_ref(&self, point: Point) -> Result<GridRef<'_>> {
         let mut grid_ref = ffi::sized!(ffi::GridRef);
-        let result =
-            unsafe { ffi::terminal_grid_ref(self.inner.as_raw(), point.into(), &raw mut grid_ref) };
+        let result = unsafe {
+            ffi::ghostty_terminal_grid_ref(self.inner.as_raw(), point.into(), &raw mut grid_ref)
+        };
         from_result(result)?;
         Ok(GridRef {
             inner: grid_ref,
@@ -252,35 +253,40 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
     /// Get the current value of a terminal mode.
     pub fn mode(&self, mode: Mode) -> Result<bool> {
         let mut value = false;
-        let result =
-            unsafe { ffi::terminal_mode_get(self.inner.as_raw(), mode.into(), &raw mut value) };
+        let result = unsafe {
+            ffi::ghostty_terminal_mode_get(self.inner.as_raw(), mode.into(), &raw mut value)
+        };
         from_result(result)?;
         Ok(value)
     }
 
     /// Set the value of a terminal mode.
     pub fn set_mode(&mut self, mode: Mode, value: bool) -> Result<()> {
-        let result = unsafe { ffi::terminal_mode_set(self.inner.as_raw(), mode.into(), value) };
+        let result =
+            unsafe { ffi::ghostty_terminal_mode_set(self.inner.as_raw(), mode.into(), value) };
         from_result(result)
     }
 
     fn get<T>(&self, tag: ffi::TerminalData::Type) -> Result<T> {
         let mut value = MaybeUninit::<T>::zeroed();
-        let result =
-            unsafe { ffi::terminal_get(self.inner.as_raw(), tag, value.as_mut_ptr().cast()) };
+        let result = unsafe {
+            ffi::ghostty_terminal_get(self.inner.as_raw(), tag, value.as_mut_ptr().cast())
+        };
         from_result(result)?;
         // SAFETY: Value should be initialized after successful call.
         Ok(unsafe { value.assume_init() })
     }
     fn get_optional<T>(&self, tag: ffi::TerminalData::Type) -> Result<Option<T>> {
         let mut value = MaybeUninit::<T>::zeroed();
-        let result =
-            unsafe { ffi::terminal_get(self.inner.as_raw(), tag, value.as_mut_ptr().cast()) };
+        let result = unsafe {
+            ffi::ghostty_terminal_get(self.inner.as_raw(), tag, value.as_mut_ptr().cast())
+        };
         from_optional_result(result, value)
     }
     fn set<T>(&self, tag: ffi::TerminalOption::Type, v: &T) -> Result<()> {
-        let result =
-            unsafe { ffi::terminal_set(self.inner.as_raw(), tag, std::ptr::from_ref(v).cast()) };
+        let result = unsafe {
+            ffi::ghostty_terminal_set(self.inner.as_raw(), tag, std::ptr::from_ref(v).cast())
+        };
         from_result(result)
     }
     fn set_optional<T>(&self, tag: ffi::TerminalOption::Type, v: Option<&T>) -> Result<()> {
@@ -290,7 +296,7 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
             std::ptr::null()
         };
 
-        let result = unsafe { ffi::terminal_set(self.inner.as_raw(), tag, ptr.cast()) };
+        let result = unsafe { ffi::ghostty_terminal_set(self.inner.as_raw(), tag, ptr.cast()) };
         from_result(result)
     }
 
@@ -450,7 +456,7 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
 
 impl Drop for Terminal<'_, '_> {
     fn drop(&mut self) {
-        unsafe { ffi::terminal_free(self.inner.as_raw()) }
+        unsafe { ffi::ghostty_terminal_free(self.inner.as_raw()) }
     }
 }
 
@@ -916,7 +922,7 @@ macro_rules! handlers {
                 ) $(-> $rawrty)? = callback;
 
                 let result = unsafe {
-                    $crate::ffi::terminal_set(
+                    $crate::ffi::ghostty_terminal_set(
                         self.inner.as_raw(),
                         $crate::ffi::TerminalOption::$tag,
                         callback_ptr as *const ::std::ffi::c_void

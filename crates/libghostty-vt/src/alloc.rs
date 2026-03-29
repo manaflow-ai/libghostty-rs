@@ -86,7 +86,7 @@ impl<'alloc> Bytes<'alloc> {
     }
 
     unsafe fn new_inner(alloc: *const ffi::Allocator, len: usize) -> Result<Self> {
-        let raw = unsafe { ffi::alloc(alloc, len) };
+        let raw = unsafe { ffi::ghostty_alloc(alloc, len) };
         let ptr = NonNull::new(raw).ok_or(Error::OutOfMemory)?;
         Ok(unsafe { Self::from_raw_parts(ptr, len, alloc) })
     }
@@ -109,7 +109,7 @@ impl Drop for Bytes<'_> {
         // SAFETY: The lifetime dictates that the allocator must
         // remain valid through here. We retain ownership of the bytes
         // memory itself so it should not be freed beforehand.
-        unsafe { ffi::free(self.alloc, self.ptr.as_ptr(), self.len) };
+        unsafe { ffi::ghostty_free(self.alloc, self.ptr.as_ptr(), self.len) };
     }
 }
 impl Deref for Bytes<'_> {

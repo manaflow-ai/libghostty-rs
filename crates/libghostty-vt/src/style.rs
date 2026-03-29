@@ -50,7 +50,7 @@ impl Style {
     #[must_use]
     pub fn is_default(self) -> bool {
         let raw = ffi::Style::from(self);
-        unsafe { ffi::style_is_default(&raw const raw) }
+        unsafe { ffi::ghostty_style_is_default(&raw const raw) }
     }
 }
 
@@ -58,7 +58,7 @@ impl Default for Style {
     fn default() -> Self {
         let mut style = MaybeUninit::zeroed();
         unsafe {
-            ffi::style_default(style.as_mut_ptr());
+            ffi::ghostty_style_default(style.as_mut_ptr());
         }
 
         // SAFETY: We trust the function above to initialize everything correctly

@@ -296,7 +296,7 @@ impl<'alloc> RenderState<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::Allocator) -> Result<Self> {
         let mut raw: ffi::RenderState = std::ptr::null_mut();
-        let result = unsafe { ffi::render_state_new(alloc, &raw mut raw) };
+        let result = unsafe { ffi::ghostty_render_state_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -315,7 +315,8 @@ impl<'alloc> RenderState<'alloc> {
         &mut self,
         terminal: &Terminal<'alloc, 'cb>,
     ) -> Result<Snapshot<'alloc, '_>> {
-        let result = unsafe { ffi::render_state_update(self.0.as_raw(), terminal.inner.as_raw()) };
+        let result =
+            unsafe { ffi::ghostty_render_state_update(self.0.as_raw(), terminal.inner.as_raw()) };
         from_result(result)?;
         Ok(Snapshot(self))
     }
@@ -323,15 +324,16 @@ impl<'alloc> RenderState<'alloc> {
 
 impl Drop for RenderState<'_> {
     fn drop(&mut self) {
-        unsafe { ffi::render_state_free(self.0.as_raw()) }
+        unsafe { ffi::ghostty_render_state_free(self.0.as_raw()) }
     }
 }
 
 impl Snapshot<'_, '_> {
     fn get<T>(&self, tag: ffi::RenderStateData::Type) -> Result<T> {
         let mut value = MaybeUninit::<T>::zeroed();
-        let result =
-            unsafe { ffi::render_state_get(self.0.0.as_raw(), tag, value.as_mut_ptr().cast()) };
+        let result = unsafe {
+            ffi::ghostty_render_state_get(self.0.0.as_raw(), tag, value.as_mut_ptr().cast())
+        };
         // Since we manually model every possible query, this should never fail.
         from_result(result)?;
         // SAFETY: Value should be initialized after successful call.
@@ -340,7 +342,7 @@ impl Snapshot<'_, '_> {
 
     fn set<T>(&self, tag: ffi::RenderStateOption::Type, value: &T) -> Result<()> {
         let result = unsafe {
-            ffi::render_state_set(self.0.0.as_raw(), tag, std::ptr::from_ref(&value).cast())
+            ffi::ghostty_render_state_set(self.0.0.as_raw(), tag, std::ptr::from_ref(&value).cast())
         };
         // Since we manually model every possible query, this should never fail.
         from_result(result)
@@ -413,7 +415,8 @@ impl Snapshot<'_, '_> {
     /// Get the current color information from a render state.
     pub fn colors(&self) -> Result<Colors> {
         let mut colors = ffi::sized!(ffi::RenderStateColors);
-        let result = unsafe { ffi::render_state_colors_get(self.0.0.as_raw(), &raw mut colors) };
+        let result =
+            unsafe { ffi::ghostty_render_state_colors_get(self.0.0.as_raw(), &raw mut colors) };
         from_result(result)?;
 
         Ok(Colors {
@@ -455,7 +458,7 @@ impl<'alloc> RowIterator<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::Allocator) -> Result<Self> {
         let mut raw: ffi::RenderStateRowIterator = std::ptr::null_mut();
-        let result = unsafe { ffi::render_state_row_iterator_new(alloc, &raw mut raw) };
+        let result = unsafe { ffi::ghostty_render_state_row_iterator_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -467,7 +470,7 @@ impl<'alloc> RowIterator<'alloc> {
         snapshot: &'_ Snapshot<'alloc, '_>,
     ) -> Result<RowIteration<'alloc, '_>> {
         let result = unsafe {
-            ffi::render_state_get(
+            ffi::ghostty_render_state_get(
                 snapshot.0.0.as_raw(),
                 ffi::RenderStateData::ROW_ITERATOR,
                 std::ptr::from_mut(&mut self.0.ptr).cast(),
@@ -484,7 +487,7 @@ impl<'alloc> RowIterator<'alloc> {
 
 impl Drop for RowIterator<'_> {
     fn drop(&mut self) {
-        unsafe { ffi::render_state_row_iterator_free(self.0.as_raw()) }
+        unsafe { ffi::ghostty_render_state_row_iterator_free(self.0.as_raw()) }
     }
 }
 
@@ -498,7 +501,7 @@ impl RowIteration<'_, '_> {
         reason = "lending `next` cannot implement trait"
     )]
     pub fn next(&mut self) -> Option<&Self> {
-        if unsafe { ffi::render_state_row_iterator_next(self.iter.0.as_raw()) } {
+        if unsafe { ffi::ghostty_render_state_row_iterator_next(self.iter.0.as_raw()) } {
             Some(self)
         } else {
             None
@@ -508,7 +511,7 @@ impl RowIteration<'_, '_> {
     fn get<T>(&self, tag: ffi::RenderStateRowData::Type) -> Result<T> {
         let mut value = MaybeUninit::<T>::zeroed();
         let result = unsafe {
-            ffi::render_state_row_get(self.iter.0.as_raw(), tag, value.as_mut_ptr().cast())
+            ffi::ghostty_render_state_row_get(self.iter.0.as_raw(), tag, value.as_mut_ptr().cast())
         };
         // Since we manually model every possible query, this should never fail.
         from_result(result)?;
@@ -518,7 +521,11 @@ impl RowIteration<'_, '_> {
 
     fn set<T>(&self, tag: ffi::RenderStateRowOption::Type, value: &T) -> Result<()> {
         let result = unsafe {
-            ffi::render_state_row_set(self.iter.0.as_raw(), tag, std::ptr::from_ref(&value).cast())
+            ffi::ghostty_render_state_row_set(
+                self.iter.0.as_raw(),
+                tag,
+                std::ptr::from_ref(&value).cast(),
+            )
         };
         from_result(result)
     }
@@ -557,7 +564,7 @@ impl<'alloc> CellIterator<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::Allocator) -> Result<Self> {
         let mut raw: ffi::RenderStateRowCells = std::ptr::null_mut();
-        let result = unsafe { ffi::render_state_row_cells_new(alloc, &raw mut raw) };
+        let result = unsafe { ffi::ghostty_render_state_row_cells_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -569,7 +576,7 @@ impl<'alloc> CellIterator<'alloc> {
         row: &'_ RowIteration<'alloc, '_>,
     ) -> Result<CellIteration<'alloc, '_>> {
         let result = unsafe {
-            ffi::render_state_row_get(
+            ffi::ghostty_render_state_row_get(
                 row.iter.0.as_raw(),
                 ffi::RenderStateRowData::CELLS,
                 std::ptr::from_mut(&mut self.0.ptr).cast(),
@@ -586,7 +593,7 @@ impl<'alloc> CellIterator<'alloc> {
 
 impl Drop for CellIterator<'_> {
     fn drop(&mut self) {
-        unsafe { ffi::render_state_row_cells_free(self.0.as_raw()) }
+        unsafe { ffi::ghostty_render_state_row_cells_free(self.0.as_raw()) }
     }
 }
 
@@ -600,7 +607,7 @@ impl CellIteration<'_, '_> {
         reason = "lending `next` cannot implement trait"
     )]
     pub fn next(&mut self) -> Option<&Self> {
-        if unsafe { ffi::render_state_row_cells_next(self.iter.0.as_raw()) } {
+        if unsafe { ffi::ghostty_render_state_row_cells_next(self.iter.0.as_raw()) } {
             Some(self)
         } else {
             None
@@ -612,14 +619,18 @@ impl CellIteration<'_, '_> {
     /// Positions the iteration at the given x (column) index so that
     /// subsequent reads return data for that cell.
     pub fn select(&mut self, x: u16) -> Result<()> {
-        let result = unsafe { ffi::render_state_row_cells_select(self.iter.0.as_raw(), x) };
+        let result = unsafe { ffi::ghostty_render_state_row_cells_select(self.iter.0.as_raw(), x) };
         from_result(result)
     }
 
     fn get<T>(&self, tag: ffi::RenderStateRowCellsData::Type) -> Result<T> {
         let mut value = MaybeUninit::<T>::zeroed();
         let result = unsafe {
-            ffi::render_state_row_cells_get(self.iter.0.as_raw(), tag, value.as_mut_ptr().cast())
+            ffi::ghostty_render_state_row_cells_get(
+                self.iter.0.as_raw(),
+                tag,
+                value.as_mut_ptr().cast(),
+            )
         };
         from_result(result)?;
         // SAFETY: Value should be initialized after successful call.
@@ -635,7 +646,7 @@ impl CellIteration<'_, '_> {
     pub fn style(&self) -> Result<Style> {
         let mut value = ffi::sized!(ffi::Style);
         let result = unsafe {
-            ffi::render_state_row_cells_get(
+            ffi::ghostty_render_state_row_cells_get(
                 self.iter.0.as_raw(),
                 ffi::RenderStateRowCellsData::STYLE,
                 std::ptr::from_mut(&mut value).cast(),
@@ -703,7 +714,7 @@ impl CellIteration<'_, '_> {
     /// The base codepoint is written first, followed by any extra codepoints.
     pub fn graphemes_buf(&self, buf: &mut [char]) -> Result<()> {
         let result = unsafe {
-            ffi::render_state_row_cells_get(
+            ffi::ghostty_render_state_row_cells_get(
                 self.iter.0.as_raw(),
                 ffi::RenderStateRowCellsData::GRAPHEMES_BUF,
                 buf.as_mut_ptr().cast(),

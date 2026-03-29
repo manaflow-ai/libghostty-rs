@@ -37,21 +37,24 @@ impl GridRef<'_> {
     /// Get the row from a grid reference.
     pub fn row(&self) -> Result<Row> {
         let mut v = ffi::Row::default();
-        let result = unsafe { ffi::grid_ref_row(std::ptr::from_ref(&self.inner), &raw mut v) };
+        let result =
+            unsafe { ffi::ghostty_grid_ref_row(std::ptr::from_ref(&self.inner), &raw mut v) };
         from_result(result)?;
         Ok(Row(v))
     }
     /// Get the cell from a grid reference.
     pub fn cell(&self) -> Result<Cell> {
         let mut v = ffi::Cell::default();
-        let result = unsafe { ffi::grid_ref_cell(std::ptr::from_ref(&self.inner), &raw mut v) };
+        let result =
+            unsafe { ffi::ghostty_grid_ref_cell(std::ptr::from_ref(&self.inner), &raw mut v) };
         from_result(result)?;
         Ok(Cell(v))
     }
     /// Get the style of the cell at the grid reference's position.
     pub fn style(&self) -> Result<Style> {
         let mut v = ffi::Style::default();
-        let result = unsafe { ffi::grid_ref_style(std::ptr::from_ref(&self.inner), &raw mut v) };
+        let result =
+            unsafe { ffi::ghostty_grid_ref_style(std::ptr::from_ref(&self.inner), &raw mut v) };
         from_result(result)?;
         Style::try_from(v)
     }
@@ -70,7 +73,7 @@ impl GridRef<'_> {
     pub fn graphemes(&self, buf: &mut [char]) -> Result<usize> {
         let mut len = 0;
         let result = unsafe {
-            ffi::grid_ref_graphemes(
+            ffi::ghostty_grid_ref_graphemes(
                 std::ptr::from_ref(&self.inner),
                 std::ptr::from_mut(buf).cast(),
                 buf.len(),
@@ -91,7 +94,7 @@ pub struct Row(pub(crate) ffi::Row);
 impl Row {
     fn get<T>(&self, tag: ffi::RowData::Type) -> Result<T> {
         let mut value = MaybeUninit::<T>::zeroed();
-        let result = unsafe { ffi::row_get(self.0, tag, value.as_mut_ptr().cast()) };
+        let result = unsafe { ffi::ghostty_row_get(self.0, tag, value.as_mut_ptr().cast()) };
         // Since we manually model every possible query, this should never fail.
         from_result(result)?;
         // SAFETY: Value should be initialized after successful call.
@@ -143,7 +146,7 @@ pub struct Cell(pub(crate) ffi::Cell);
 impl Cell {
     fn get<T>(&self, tag: ffi::CellData::Type) -> Result<T> {
         let mut value = MaybeUninit::<T>::zeroed();
-        let result = unsafe { ffi::cell_get(self.0, tag, value.as_mut_ptr().cast()) };
+        let result = unsafe { ffi::ghostty_cell_get(self.0, tag, value.as_mut_ptr().cast()) };
         // Since we manually model every possible query, this should never fail.
         from_result(result)?;
         // SAFETY: Value should be initialized after successful call.

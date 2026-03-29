@@ -114,7 +114,14 @@ struct Callbacks;
 impl ParseCallbacks for Callbacks {
     fn item_name(&self, item_info: ItemInfo) -> Option<String> {
         let prefix = match item_info.kind {
-            ItemKind::Function => "ghostty_",
+            // Do not rename functions since bindgen unconditionally prefixes
+            // the `link_name` with `\u{1}`, which was supposed to stop LLVM
+            // from mangling the name again but apparently this is necessary
+            // on macOS and other Apple platforms?
+            //
+            // Honestly, what the hell. See:
+            // https://github.com/rust-lang/rust-bindgen/issues/1221
+            ItemKind::Function => return None,
             ItemKind::Var => "GHOSTTY_",
             _ => "Ghostty",
         };

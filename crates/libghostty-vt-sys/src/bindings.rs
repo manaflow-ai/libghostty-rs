@@ -203,13 +203,11 @@ impl Default for Allocator {
 }
 unsafe extern "C" {
     #[doc = " Allocate a buffer of `len` bytes.\n\n Uses the provided allocator, or the default allocator if NULL is passed.\n The returned buffer must be freed with ghostty_free() using the same\n allocator.\n\n"]
-    #[link_name = "\u{1}ghostty_alloc"]
-    pub fn alloc(allocator: *const Allocator, len: usize) -> *mut u8;
+    pub fn ghostty_alloc(allocator: *const Allocator, len: usize) -> *mut u8;
 }
 unsafe extern "C" {
     #[doc = " Free memory that was allocated by a libghostty-vt function.\n\n Use this to free buffers returned by functions such as\n ghostty_formatter_format_alloc(). Pass the same allocator that was\n used for the allocation, or NULL if the default allocator was used.\n\n On platforms where the library's internal allocator differs from the\n consumer's C runtime (e.g. Windows, where Zig's libc and MSVC's CRT\n maintain separate heaps), calling the standard C free() on memory\n allocated by the library causes undefined behavior. This function\n guarantees the correct allocator is used regardless of platform.\n\n It is safe to pass a NULL pointer; the call is a no-op in that case.\n\n   memory, or NULL if the default allocator was used\n   allocation size)\n"]
-    #[link_name = "\u{1}ghostty_free"]
-    pub fn free(allocator: *const Allocator, ptr: *mut u8, len: usize);
+    pub fn ghostty_free(allocator: *const Allocator, ptr: *mut u8, len: usize);
 }
 pub mod OptimizeMode {
     #[doc = " Build optimization mode."]
@@ -245,8 +243,10 @@ pub mod BuildInfo {
 }
 unsafe extern "C" {
     #[doc = " Query a compile-time build configuration value.\n\n The caller must pass a pointer to the correct output type for the\n requested data (see GhosttyBuildInfo variants for types).\n\n         data type is invalid\n"]
-    #[link_name = "\u{1}ghostty_build_info"]
-    pub fn build_info(data: BuildInfo::Type, out: *mut ::std::os::raw::c_void) -> Result::Type;
+    pub fn ghostty_build_info(
+        data: BuildInfo::Type,
+        out: *mut ::std::os::raw::c_void,
+    ) -> Result::Type;
 }
 #[doc = " RGB color value.\n"]
 #[repr(C)]
@@ -271,8 +271,7 @@ const _: () = {
 pub type ColorPaletteIndex = u8;
 unsafe extern "C" {
     #[doc = " Get the RGB color components.\n\n This function extracts the individual red, green, and blue components\n from a GhosttyColorRgb value. Primarily useful in WebAssembly environments\n where accessing struct fields directly is difficult.\n\n"]
-    #[link_name = "\u{1}ghostty_color_rgb_get"]
-    pub fn color_rgb_get(color: ColorRgb, r: *mut u8, g: *mut u8, b: *mut u8);
+    pub fn ghostty_color_rgb_get(color: ColorRgb, r: *mut u8, g: *mut u8, b: *mut u8);
 }
 pub mod ColorScheme {
     #[doc = " Color scheme reported in response to a CSI ? 996 n query.\n"]
@@ -391,8 +390,7 @@ pub mod FocusEvent {
 }
 unsafe extern "C" {
     #[doc = " Encode a focus event into a terminal escape sequence.\n\n Encodes a focus gained (CSI I) or focus lost (CSI O) report into the\n provided buffer.\n\n If the buffer is too small, the function returns GHOSTTY_OUT_OF_SPACE\n and writes the required buffer size to @p out_written. The caller can\n then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size.\n         is too small"]
-    #[link_name = "\u{1}ghostty_focus_encode"]
-    pub fn focus_encode(
+    pub fn ghostty_focus_encode(
         event: FocusEvent::Type,
         buf: *mut ::std::os::raw::c_char,
         buf_len: usize,
@@ -417,8 +415,7 @@ pub mod ModeReportState {
 }
 unsafe extern "C" {
     #[doc = " Encode a DECRPM (DEC Private Mode Report) response sequence.\n\n Writes a mode report escape sequence into the provided buffer.\n The generated sequence has the form:\n - DEC private mode: CSI ? Ps1 ; Ps2 $ y\n - ANSI mode:        CSI Ps1 ; Ps2 $ y\n\n If the buffer is too small, the function returns GHOSTTY_OUT_OF_SPACE\n and writes the required buffer size to @p out_written. The caller can\n then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size.\n         is too small"]
-    #[link_name = "\u{1}ghostty_mode_report_encode"]
-    pub fn mode_report_encode(
+    pub fn ghostty_mode_report_encode(
         mode: Mode,
         state: ModeReportState::Type,
         buf: *mut ::std::os::raw::c_char,
@@ -466,8 +463,7 @@ const _: () = {
 };
 unsafe extern "C" {
     #[doc = " Encode a terminal size report into an escape sequence.\n\n Encodes a size report in the format specified by @p style into the\n provided buffer.\n\n If the buffer is too small, the function returns GHOSTTY_OUT_OF_SPACE\n and writes the required buffer size to @p out_written. The caller can\n then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size.\n         is too small"]
-    #[link_name = "\u{1}ghostty_size_report_encode"]
-    pub fn size_report_encode(
+    pub fn ghostty_size_report_encode(
         style: SizeReportStyle::Type,
         size: SizeReportSize,
         buf: *mut ::std::os::raw::c_char,
@@ -575,8 +571,7 @@ pub mod RowData {
 }
 unsafe extern "C" {
     #[doc = " Get data from a cell.\n\n Extracts typed data from the given cell based on the specified\n data type. The output pointer must be of the appropriate type for the\n requested data kind. Valid data types and output types are documented\n in the `GhosttyCellData` enum.\n\n         data type is invalid\n"]
-    #[link_name = "\u{1}ghostty_cell_get"]
-    pub fn cell_get(
+    pub fn ghostty_cell_get(
         cell: Cell,
         data: CellData::Type,
         out: *mut ::std::os::raw::c_void,
@@ -584,9 +579,11 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Get data from a row.\n\n Extracts typed data from the given row based on the specified\n data type. The output pointer must be of the appropriate type for the\n requested data kind. Valid data types and output types are documented\n in the `GhosttyRowData` enum.\n\n         data type is invalid\n"]
-    #[link_name = "\u{1}ghostty_row_get"]
-    pub fn row_get(row: Row, data: RowData::Type, out: *mut ::std::os::raw::c_void)
-        -> Result::Type;
+    pub fn ghostty_row_get(
+        row: Row,
+        data: RowData::Type,
+        out: *mut ::std::os::raw::c_void,
+    ) -> Result::Type;
 }
 #[doc = " Style identifier type.\n\n Used to look up the full style from a grid reference.\n Obtain this from a cell via GHOSTTY_CELL_DATA_STYLE_ID.\n"]
 pub type StyleId = u16;
@@ -698,13 +695,11 @@ impl Default for Style {
 }
 unsafe extern "C" {
     #[doc = " Get the default style.\n\n Initializes the style to the default values (no colors, no flags).\n\n"]
-    #[link_name = "\u{1}ghostty_style_default"]
-    pub fn style_default(style: *mut Style);
+    pub fn ghostty_style_default(style: *mut Style);
 }
 unsafe extern "C" {
     #[doc = " Check if a style is the default style.\n\n Returns true if all colors are unset and all flags are off.\n\n"]
-    #[link_name = "\u{1}ghostty_style_is_default"]
-    pub fn style_is_default(style: *const Style) -> bool;
+    pub fn ghostty_style_is_default(style: *const Style) -> bool;
 }
 #[doc = " A resolved reference to a terminal cell position.\n\n This is a sized struct. Use GHOSTTY_INIT_SIZED() to initialize it.\n"]
 #[repr(C)]
@@ -735,18 +730,15 @@ impl Default for GridRef {
 }
 unsafe extern "C" {
     #[doc = " Get the cell from a grid reference.\n\n         node is NULL\n"]
-    #[link_name = "\u{1}ghostty_grid_ref_cell"]
-    pub fn grid_ref_cell(ref_: *const GridRef, out_cell: *mut Cell) -> Result::Type;
+    pub fn ghostty_grid_ref_cell(ref_: *const GridRef, out_cell: *mut Cell) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Get the row from a grid reference.\n\n         node is NULL\n"]
-    #[link_name = "\u{1}ghostty_grid_ref_row"]
-    pub fn grid_ref_row(ref_: *const GridRef, out_row: *mut Row) -> Result::Type;
+    pub fn ghostty_grid_ref_row(ref_: *const GridRef, out_row: *mut Row) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Get the grapheme cluster codepoints for the cell at the grid reference's\n position.\n\n Writes the full grapheme cluster (the cell's primary codepoint followed by\n any combining codepoints) into the provided buffer. If the cell has no text,\n out_len is set to 0 and GHOSTTY_SUCCESS is returned.\n\n If the buffer is too small (or NULL), the function returns\n GHOSTTY_OUT_OF_SPACE and writes the required number of codepoints to\n out_len. The caller can then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size in codepoints.\n         node is NULL, GHOSTTY_OUT_OF_SPACE if the buffer is too small\n"]
-    #[link_name = "\u{1}ghostty_grid_ref_graphemes"]
-    pub fn grid_ref_graphemes(
+    pub fn ghostty_grid_ref_graphemes(
         ref_: *const GridRef,
         buf: *mut u32,
         buf_len: usize,
@@ -755,8 +747,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Get the style of the cell at the grid reference's position.\n\n         node is NULL\n"]
-    #[link_name = "\u{1}ghostty_grid_ref_style"]
-    pub fn grid_ref_style(ref_: *const GridRef, out_style: *mut Style) -> Result::Type;
+    pub fn ghostty_grid_ref_style(ref_: *const GridRef, out_style: *mut Style) -> Result::Type;
 }
 #[doc = " A coordinate in the terminal grid.\n"]
 #[repr(C)]
@@ -1101,8 +1092,7 @@ pub mod TerminalData {
 }
 unsafe extern "C" {
     #[doc = " Create a new terminal instance.\n\n"]
-    #[link_name = "\u{1}ghostty_terminal_new"]
-    pub fn terminal_new(
+    pub fn ghostty_terminal_new(
         allocator: *const Allocator,
         terminal: *mut Terminal,
         options: TerminalOptions,
@@ -1110,18 +1100,15 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Free a terminal instance.\n\n Releases all resources associated with the terminal. After this call,\n the terminal handle becomes invalid and must not be used.\n\n"]
-    #[link_name = "\u{1}ghostty_terminal_free"]
-    pub fn terminal_free(terminal: Terminal);
+    pub fn ghostty_terminal_free(terminal: Terminal);
 }
 unsafe extern "C" {
     #[doc = " Perform a full reset of the terminal (RIS).\n\n Resets all terminal state back to its initial configuration, including\n modes, scrollback, scrolling region, and screen contents. The terminal\n dimensions are preserved.\n\n"]
-    #[link_name = "\u{1}ghostty_terminal_reset"]
-    pub fn terminal_reset(terminal: Terminal);
+    pub fn ghostty_terminal_reset(terminal: Terminal);
 }
 unsafe extern "C" {
     #[doc = " Resize the terminal to the given dimensions.\n\n Changes the number of columns and rows in the terminal. The primary\n screen will reflow content if wraparound mode is enabled; the alternate\n screen does not reflow. If the dimensions are unchanged, this is a no-op.\n\n This also updates the terminal's pixel dimensions (used for image\n protocols and size reports), disables synchronized output mode (allowed\n by the spec so that resize results are shown immediately), and sends an\n in-band size report if mode 2048 is enabled.\n\n"]
-    #[link_name = "\u{1}ghostty_terminal_resize"]
-    pub fn terminal_resize(
+    pub fn ghostty_terminal_resize(
         terminal: Terminal,
         cols: u16,
         rows: u16,
@@ -1131,8 +1118,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Set an option on the terminal.\n\n Configures terminal callbacks and associated state such as the\n write_pty callback and userdata pointer. The value is passed\n directly for pointer types (callbacks, userdata) or as a pointer\n to the value for non-pointer types (e.g. GhosttyString*).\n NULL clears the option to its default.\n\n Callbacks are invoked synchronously during ghostty_terminal_vt_write().\n Callbacks must not call ghostty_terminal_vt_write() on the same\n terminal (no reentrancy).\n\n              or NULL to clear the option\n"]
-    #[link_name = "\u{1}ghostty_terminal_set"]
-    pub fn terminal_set(
+    pub fn ghostty_terminal_set(
         terminal: Terminal,
         option: TerminalOption::Type,
         value: *const ::std::os::raw::c_void,
@@ -1140,28 +1126,27 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Write VT-encoded data to the terminal for processing.\n\n Feeds raw bytes through the terminal's VT stream parser, updating\n terminal state accordingly. By default, sequences that require output\n (queries, device status reports) are silently ignored. Use\n ghostty_terminal_set() with GHOSTTY_TERMINAL_OPT_WRITE_PTY to install\n a callback that receives response data.\n\n This never fails. Any erroneous input or errors in processing the\n input are logged internally but do not cause this function to fail\n because this input is assumed to be untrusted and from an external\n source; so the primary goal is to keep the terminal state consistent and\n not allow malformed input to corrupt or crash.\n\n"]
-    #[link_name = "\u{1}ghostty_terminal_vt_write"]
-    pub fn terminal_vt_write(terminal: Terminal, data: *const u8, len: usize);
+    pub fn ghostty_terminal_vt_write(terminal: Terminal, data: *const u8, len: usize);
 }
 unsafe extern "C" {
     #[doc = " Scroll the terminal viewport.\n\n Scrolls the terminal's viewport according to the given behavior.\n When using GHOSTTY_SCROLL_VIEWPORT_DELTA, set the delta field in\n the value union to specify the number of rows to scroll (negative\n for up, positive for down). For other behaviors, the value is ignored.\n\n"]
-    #[link_name = "\u{1}ghostty_terminal_scroll_viewport"]
-    pub fn terminal_scroll_viewport(terminal: Terminal, behavior: TerminalScrollViewport);
+    pub fn ghostty_terminal_scroll_viewport(terminal: Terminal, behavior: TerminalScrollViewport);
 }
 unsafe extern "C" {
     #[doc = " Get the current value of a terminal mode.\n\n Returns the value of the mode identified by the given mode.\n\n             if it is reset\n         is NULL or the mode does not correspond to a known mode\n"]
-    #[link_name = "\u{1}ghostty_terminal_mode_get"]
-    pub fn terminal_mode_get(terminal: Terminal, mode: Mode, out_value: *mut bool) -> Result::Type;
+    pub fn ghostty_terminal_mode_get(
+        terminal: Terminal,
+        mode: Mode,
+        out_value: *mut bool,
+    ) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Set the value of a terminal mode.\n\n Sets the mode identified by the given mode to the specified value.\n\n         is NULL or the mode does not correspond to a known mode\n"]
-    #[link_name = "\u{1}ghostty_terminal_mode_set"]
-    pub fn terminal_mode_set(terminal: Terminal, mode: Mode, value: bool) -> Result::Type;
+    pub fn ghostty_terminal_mode_set(terminal: Terminal, mode: Mode, value: bool) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Get data from a terminal instance.\n\n Extracts typed data from the given terminal based on the specified\n data type. The output pointer must be of the appropriate type for the\n requested data kind. Valid data types and output types are documented\n in the `GhosttyTerminalData` enum.\n\n         is NULL or the data type is invalid\n"]
-    #[link_name = "\u{1}ghostty_terminal_get"]
-    pub fn terminal_get(
+    pub fn ghostty_terminal_get(
         terminal: Terminal,
         data: TerminalData::Type,
         out: *mut ::std::os::raw::c_void,
@@ -1169,8 +1154,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Resolve a point in the terminal grid to a grid reference.\n\n Resolves the given point (which can be in active, viewport, screen,\n or history coordinates) to a grid reference for that location. Use\n ghostty_grid_ref_cell() and ghostty_grid_ref_row() to extract the cell\n and row.\n\n Lookups using the `active` and `viewport` tags are fast. The `screen`\n and `history` tags may require traversing the full scrollback page list\n to resolve the y coordinate, so they can be expensive for large\n scrollback buffers.\n\n This function isn't meant to be used as the core of render loop. It\n isn't built to sustain the framerates needed for rendering large screens.\n Use the render state API for that. This API is instead meant for less\n strictly performance-sensitive use cases.\n\n         is NULL or the point is out of bounds\n"]
-    #[link_name = "\u{1}ghostty_terminal_grid_ref"]
-    pub fn terminal_grid_ref(
+    pub fn ghostty_terminal_grid_ref(
         terminal: Terminal,
         point: Point,
         out_ref: *mut GridRef,
@@ -1317,8 +1301,7 @@ impl Default for FormatterTerminalOptions {
 }
 unsafe extern "C" {
     #[doc = " Create a formatter for a terminal's active screen.\n\n The terminal must outlive the formatter. The formatter stores a borrowed\n reference to the terminal and reads its current state on each format call.\n\n"]
-    #[link_name = "\u{1}ghostty_formatter_terminal_new"]
-    pub fn formatter_terminal_new(
+    pub fn ghostty_formatter_terminal_new(
         allocator: *const Allocator,
         formatter: *mut Formatter,
         terminal: Terminal,
@@ -1327,8 +1310,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Run the formatter and produce output into the caller-provided buffer.\n\n Each call formats the current terminal state. Pass NULL for buf to\n query the required buffer size without writing any output; in that case\n out_written receives the required size and the return value is\n GHOSTTY_OUT_OF_SPACE.\n\n If the buffer is too small, returns GHOSTTY_OUT_OF_SPACE and sets\n out_written to the required size. The caller can then retry with a\n larger buffer.\n\n                    or the required size on failure\n"]
-    #[link_name = "\u{1}ghostty_formatter_format_buf"]
-    pub fn formatter_format_buf(
+    pub fn ghostty_formatter_format_buf(
         formatter: Formatter,
         buf: *mut u8,
         buf_len: usize,
@@ -1337,8 +1319,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Run the formatter and return an allocated buffer with the output.\n\n Each call formats the current terminal state. The buffer is allocated\n using the provided allocator (or the default allocator if NULL).\n The caller is responsible for freeing the returned buffer with\n ghostty_free(), passing the same allocator (or NULL for the default)\n that was used for the allocation.\n\n         failure\n"]
-    #[link_name = "\u{1}ghostty_formatter_format_alloc"]
-    pub fn formatter_format_alloc(
+    pub fn ghostty_formatter_format_alloc(
         formatter: Formatter,
         allocator: *const Allocator,
         out_ptr: *mut *mut u8,
@@ -1347,8 +1328,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Free a formatter instance.\n\n Releases all resources associated with the formatter. After this call,\n the formatter handle becomes invalid.\n\n"]
-    #[link_name = "\u{1}ghostty_formatter_free"]
-    pub fn formatter_free(formatter: Formatter);
+    pub fn ghostty_formatter_free(formatter: Formatter);
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -1502,23 +1482,22 @@ impl Default for RenderStateColors {
 }
 unsafe extern "C" {
     #[doc = " Create a new render state instance.\n\n failure\n"]
-    #[link_name = "\u{1}ghostty_render_state_new"]
-    pub fn render_state_new(allocator: *const Allocator, state: *mut RenderState) -> Result::Type;
+    pub fn ghostty_render_state_new(
+        allocator: *const Allocator,
+        state: *mut RenderState,
+    ) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Free a render state instance.\n\n Releases all resources associated with the render state. After this call,\n the render state handle becomes invalid.\n\n"]
-    #[link_name = "\u{1}ghostty_render_state_free"]
-    pub fn render_state_free(state: RenderState);
+    pub fn ghostty_render_state_free(state: RenderState);
 }
 unsafe extern "C" {
     #[doc = " Update a render state instance from a terminal.\n\n This consumes terminal/screen dirty state in the same way as the internal\n render state update path.\n\n `terminal` is NULL, GHOSTTY_OUT_OF_MEMORY if updating the state requires\n allocation and that allocation fails\n"]
-    #[link_name = "\u{1}ghostty_render_state_update"]
-    pub fn render_state_update(state: RenderState, terminal: Terminal) -> Result::Type;
+    pub fn ghostty_render_state_update(state: RenderState, terminal: Terminal) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Get a value from a render state.\n\n The `out` pointer must point to a value of the type corresponding to the\n requested data kind (see GhosttyRenderStateData).\n\n         NULL or `data` is not a recognized enum value\n"]
-    #[link_name = "\u{1}ghostty_render_state_get"]
-    pub fn render_state_get(
+    pub fn ghostty_render_state_get(
         state: RenderState,
         data: RenderStateData::Type,
         out: *mut ::std::os::raw::c_void,
@@ -1526,8 +1505,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Set an option on a render state.\n\n The `value` pointer must point to a value of the type corresponding to the\n requested option kind (see GhosttyRenderStateOption).\n\n            GHOSTTY_INVALID_VALUE)\n         `value` is NULL\n"]
-    #[link_name = "\u{1}ghostty_render_state_set"]
-    pub fn render_state_set(
+    pub fn ghostty_render_state_set(
         state: RenderState,
         option: RenderStateOption::Type,
         value: *const ::std::os::raw::c_void,
@@ -1535,34 +1513,29 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Get the current color information from a render state.\n\n This writes as many fields as fit in the caller-provided sized struct.\n `out_colors->size` must be set by the caller (typically via\n GHOSTTY_INIT_SIZED(GhosttyRenderStateColors)).\n\n         `out_colors` is NULL, or if `out_colors->size` is smaller than\n         `sizeof(size_t)`\n"]
-    #[link_name = "\u{1}ghostty_render_state_colors_get"]
-    pub fn render_state_colors_get(
+    pub fn ghostty_render_state_colors_get(
         state: RenderState,
         out_colors: *mut RenderStateColors,
     ) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Create a new row iterator instance.\n\n All fields except the allocator are left undefined until populated\n via ghostty_render_state_get() with\n GHOSTTY_RENDER_STATE_DATA_ROW_ITERATOR.\n\n         failure\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_iterator_new"]
-    pub fn render_state_row_iterator_new(
+    pub fn ghostty_render_state_row_iterator_new(
         allocator: *const Allocator,
         out_iterator: *mut RenderStateRowIterator,
     ) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Free a render-state row iterator.\n\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_iterator_free"]
-    pub fn render_state_row_iterator_free(iterator: RenderStateRowIterator);
+    pub fn ghostty_render_state_row_iterator_free(iterator: RenderStateRowIterator);
 }
 unsafe extern "C" {
     #[doc = " Move a render-state row iterator to the next row.\n\n Returns true if the iterator moved successfully and row data is\n available to read at the new position.\n\n         NULL or if the iterator has reached the end\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_iterator_next"]
-    pub fn render_state_row_iterator_next(iterator: RenderStateRowIterator) -> bool;
+    pub fn ghostty_render_state_row_iterator_next(iterator: RenderStateRowIterator) -> bool;
 }
 unsafe extern "C" {
     #[doc = " Get a value from the current row in a render-state row iterator.\n\n The `out` pointer must point to a value of the type corresponding to the\n requested data kind (see GhosttyRenderStateRowData).\n Call ghostty_render_state_row_iterator_next() at least once before\n calling this function.\n\n         `iterator` is NULL or the iterator is not positioned on a row\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_get"]
-    pub fn render_state_row_get(
+    pub fn ghostty_render_state_row_get(
         iterator: RenderStateRowIterator,
         data: RenderStateRowData::Type,
         out: *mut ::std::os::raw::c_void,
@@ -1570,8 +1543,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Set an option on the current row in a render-state row iterator.\n\n The `value` pointer must point to a value of the type corresponding to the\n requested option kind (see GhosttyRenderStateRowOption).\n Call ghostty_render_state_row_iterator_next() at least once before\n calling this function.\n\n            GHOSTTY_INVALID_VALUE)\n         `iterator` is NULL or the iterator is not positioned on a row\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_set"]
-    pub fn render_state_row_set(
+    pub fn ghostty_render_state_row_set(
         iterator: RenderStateRowIterator,
         option: RenderStateRowOption::Type,
         value: *const ::std::os::raw::c_void,
@@ -1579,8 +1551,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Create a new row cells instance.\n\n All fields except the allocator are left undefined until populated\n via ghostty_render_state_row_get() with\n GHOSTTY_RENDER_STATE_ROW_DATA_CELLS.\n\n You can reuse this value repeatedly with ghostty_render_state_row_get() to\n avoid allocating a new cells container for every row.\n\n         failure\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_cells_new"]
-    pub fn render_state_row_cells_new(
+    pub fn ghostty_render_state_row_cells_new(
         allocator: *const Allocator,
         out_cells: *mut RenderStateRowCells,
     ) -> Result::Type;
@@ -1605,18 +1576,18 @@ pub mod RenderStateRowCellsData {
 }
 unsafe extern "C" {
     #[doc = " Move a render-state row cells iterator to the next cell.\n\n Returns true if the iterator moved successfully and cell data is\n available to read at the new position.\n\n         NULL or if the iterator has reached the end\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_cells_next"]
-    pub fn render_state_row_cells_next(cells: RenderStateRowCells) -> bool;
+    pub fn ghostty_render_state_row_cells_next(cells: RenderStateRowCells) -> bool;
 }
 unsafe extern "C" {
     #[doc = " Move a render-state row cells iterator to a specific column.\n\n Positions the iterator at the given x (column) index so that\n subsequent reads return data for that cell.\n\n        GHOSTTY_INVALID_VALUE)\n         is NULL or `x` is out of range\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_cells_select"]
-    pub fn render_state_row_cells_select(cells: RenderStateRowCells, x: u16) -> Result::Type;
+    pub fn ghostty_render_state_row_cells_select(
+        cells: RenderStateRowCells,
+        x: u16,
+    ) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Get a value from the current cell in a render-state row cells iterator.\n\n The `out` pointer must point to a value of the type corresponding to the\n requested data kind (see GhosttyRenderStateRowCellsData).\n Call ghostty_render_state_row_cells_next() or\n ghostty_render_state_row_cells_select() at least once before\n calling this function.\n\n         `cells` is NULL or the iterator is not positioned on a cell\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_cells_get"]
-    pub fn render_state_row_cells_get(
+    pub fn ghostty_render_state_row_cells_get(
         cells: RenderStateRowCells,
         data: RenderStateRowCellsData::Type,
         out: *mut ::std::os::raw::c_void,
@@ -1624,8 +1595,7 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Free a row cells instance.\n\n"]
-    #[link_name = "\u{1}ghostty_render_state_row_cells_free"]
-    pub fn render_state_row_cells_free(cells: RenderStateRowCells);
+    pub fn ghostty_render_state_row_cells_free(cells: RenderStateRowCells);
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -1678,38 +1648,31 @@ pub mod OscCommandData {
 }
 unsafe extern "C" {
     #[doc = " Create a new OSC parser instance.\n\n Creates a new OSC (Operating System Command) parser using the provided\n allocator. The parser must be freed using ghostty_vt_osc_free() when\n no longer needed.\n\n"]
-    #[link_name = "\u{1}ghostty_osc_new"]
-    pub fn osc_new(allocator: *const Allocator, parser: *mut OscParser) -> Result::Type;
+    pub fn ghostty_osc_new(allocator: *const Allocator, parser: *mut OscParser) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Free an OSC parser instance.\n\n Releases all resources associated with the OSC parser. After this call,\n the parser handle becomes invalid and must not be used.\n\n"]
-    #[link_name = "\u{1}ghostty_osc_free"]
-    pub fn osc_free(parser: OscParser);
+    pub fn ghostty_osc_free(parser: OscParser);
 }
 unsafe extern "C" {
     #[doc = " Reset an OSC parser instance to its initial state.\n\n Resets the parser state, clearing any partially parsed OSC sequences\n and returning the parser to its initial state. This is useful for\n reusing a parser instance or recovering from parse errors.\n\n"]
-    #[link_name = "\u{1}ghostty_osc_reset"]
-    pub fn osc_reset(parser: OscParser);
+    pub fn ghostty_osc_reset(parser: OscParser);
 }
 unsafe extern "C" {
     #[doc = " Parse the next byte in an OSC sequence.\n\n Processes a single byte as part of an OSC sequence. The parser maintains\n internal state to track the progress through the sequence. Call this\n function for each byte in the sequence data.\n\n When finished pumping the parser with bytes, call ghostty_osc_end\n to get the final result.\n\n"]
-    #[link_name = "\u{1}ghostty_osc_next"]
-    pub fn osc_next(parser: OscParser, byte: u8);
+    pub fn ghostty_osc_next(parser: OscParser, byte: u8);
 }
 unsafe extern "C" {
     #[doc = " Finalize OSC parsing and retrieve the parsed command.\n\n Call this function after feeding all bytes of an OSC sequence to the parser\n using ghostty_osc_next() with the exception of the terminating character\n (ESC or ST). This function finalizes the parsing process and returns the\n parsed OSC command.\n\n The return value is never NULL. Invalid commands will return a command\n with type GHOSTTY_OSC_COMMAND_INVALID.\n\n The terminator parameter specifies the byte that terminated the OSC sequence\n (typically 0x07 for BEL or 0x5C for ST after ESC). This information is\n preserved in the parsed command so that responses can use the same terminator\n format for better compatibility with the calling program. For commands that\n do not require a response, this parameter is ignored and the resulting\n command will not retain the terminator information.\n\n The returned command handle is valid until the next call to any\n `ghostty_osc_*` function with the same parser instance with the exception\n of command introspection functions such as `ghostty_osc_command_type`.\n\n"]
-    #[link_name = "\u{1}ghostty_osc_end"]
-    pub fn osc_end(parser: OscParser, terminator: u8) -> OscCommand;
+    pub fn ghostty_osc_end(parser: OscParser, terminator: u8) -> OscCommand;
 }
 unsafe extern "C" {
     #[doc = " Get the type of an OSC command.\n\n Returns the type identifier for the given OSC command. This can be used\n to determine what kind of command was parsed and what data might be\n available from it.\n\n"]
-    #[link_name = "\u{1}ghostty_osc_command_type"]
-    pub fn osc_command_type(command: OscCommand) -> OscCommandType::Type;
+    pub fn ghostty_osc_command_type(command: OscCommand) -> OscCommandType::Type;
 }
 unsafe extern "C" {
     #[doc = " Extract data from an OSC command.\n\n Extracts typed data from the given OSC command based on the specified\n data type. The output pointer must be of the appropriate type for the\n requested data kind. Valid command types, output types, and memory\n safety information are documented in the `GhosttyOscCommandData` enum.\n\n"]
-    #[link_name = "\u{1}ghostty_osc_command_data"]
-    pub fn osc_command_data(
+    pub fn ghostty_osc_command_data(
         command: OscCommand,
         data: OscCommandData::Type,
         out: *mut ::std::os::raw::c_void,
@@ -1881,23 +1844,19 @@ impl Default for SgrAttribute {
 }
 unsafe extern "C" {
     #[doc = " Create a new SGR parser instance.\n\n Creates a new SGR (Select Graphic Rendition) parser using the provided\n allocator. The parser must be freed using ghostty_sgr_free() when\n no longer needed.\n\n NULL to use the default allocator\n"]
-    #[link_name = "\u{1}ghostty_sgr_new"]
-    pub fn sgr_new(allocator: *const Allocator, parser: *mut SgrParser) -> Result::Type;
+    pub fn ghostty_sgr_new(allocator: *const Allocator, parser: *mut SgrParser) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Free an SGR parser instance.\n\n Releases all resources associated with the SGR parser. After this call,\n the parser handle becomes invalid and must not be used. This includes\n any attributes previously returned by ghostty_sgr_next().\n\n"]
-    #[link_name = "\u{1}ghostty_sgr_free"]
-    pub fn sgr_free(parser: SgrParser);
+    pub fn ghostty_sgr_free(parser: SgrParser);
 }
 unsafe extern "C" {
     #[doc = " Reset an SGR parser instance to the beginning of the parameter list.\n\n Resets the parser's iteration state without clearing the parameters.\n After calling this, ghostty_sgr_next() will start from the beginning\n of the parameter list again.\n\n"]
-    #[link_name = "\u{1}ghostty_sgr_reset"]
-    pub fn sgr_reset(parser: SgrParser);
+    pub fn ghostty_sgr_reset(parser: SgrParser);
 }
 unsafe extern "C" {
     #[doc = " Set SGR parameters for parsing.\n\n Sets the SGR parameter list to parse. Parameters are the numeric values\n from a CSI SGR sequence (e.g., for `ESC[1;31m`, params would be {1, 31}).\n\n The separators array optionally specifies the separator type for each\n parameter position. Each byte should be either ';' for semicolon or ':'\n for colon. This is needed for certain color formats that use colon\n separators (e.g., `ESC[4:3m` for curly underline). Any invalid separator\n values are treated as semicolons. The separators array must have the same\n length as the params array, if it is not NULL.\n\n If separators is NULL, all parameters are assumed to be semicolon-separated.\n\n This function makes an internal copy of the parameter and separator data,\n so the caller can safely free or modify the input arrays after this call.\n\n After calling this function, the parser is automatically reset and ready\n to iterate from the beginning.\n\n NULL\n"]
-    #[link_name = "\u{1}ghostty_sgr_set_params"]
-    pub fn sgr_set_params(
+    pub fn ghostty_sgr_set_params(
         parser: SgrParser,
         params: *const u16,
         separators: *const ::std::os::raw::c_char,
@@ -1906,28 +1865,23 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Get the next SGR attribute.\n\n Parses and returns the next attribute from the parameter list.\n Call this function repeatedly until it returns false to process\n all attributes in the sequence.\n\n"]
-    #[link_name = "\u{1}ghostty_sgr_next"]
-    pub fn sgr_next(parser: SgrParser, attr: *mut SgrAttribute) -> bool;
+    pub fn ghostty_sgr_next(parser: SgrParser, attr: *mut SgrAttribute) -> bool;
 }
 unsafe extern "C" {
     #[doc = " Get the full parameter list from an unknown SGR attribute.\n\n This function retrieves the full parameter list that was provided to the\n parser when an unknown attribute was encountered. Primarily useful in\n WebAssembly environments where accessing struct fields directly is difficult.\n\n"]
-    #[link_name = "\u{1}ghostty_sgr_unknown_full"]
-    pub fn sgr_unknown_full(unknown: SgrUnknown, ptr: *mut *const u16) -> usize;
+    pub fn ghostty_sgr_unknown_full(unknown: SgrUnknown, ptr: *mut *const u16) -> usize;
 }
 unsafe extern "C" {
     #[doc = " Get the partial parameter list from an unknown SGR attribute.\n\n This function retrieves the partial parameter list where parsing stopped\n when an unknown attribute was encountered. Primarily useful in WebAssembly\n environments where accessing struct fields directly is difficult.\n\n"]
-    #[link_name = "\u{1}ghostty_sgr_unknown_partial"]
-    pub fn sgr_unknown_partial(unknown: SgrUnknown, ptr: *mut *const u16) -> usize;
+    pub fn ghostty_sgr_unknown_partial(unknown: SgrUnknown, ptr: *mut *const u16) -> usize;
 }
 unsafe extern "C" {
     #[doc = " Get the tag from an SGR attribute.\n\n This function extracts the tag that identifies which type of attribute\n this is. Primarily useful in WebAssembly environments where accessing\n struct fields directly is difficult.\n\n"]
-    #[link_name = "\u{1}ghostty_sgr_attribute_tag"]
-    pub fn sgr_attribute_tag(attr: SgrAttribute) -> SgrAttributeTag::Type;
+    pub fn ghostty_sgr_attribute_tag(attr: SgrAttribute) -> SgrAttributeTag::Type;
 }
 unsafe extern "C" {
     #[doc = " Get the value from an SGR attribute.\n\n This function returns a pointer to the value union from an SGR attribute. Use\n the tag to determine which field of the union is valid. Primarily useful in\n WebAssembly environments where accessing struct fields directly is difficult.\n\n"]
-    #[link_name = "\u{1}ghostty_sgr_attribute_value"]
-    pub fn sgr_attribute_value(attr: *mut SgrAttribute) -> *mut SgrAttributeValue;
+    pub fn ghostty_sgr_attribute_value(attr: *mut SgrAttribute) -> *mut SgrAttributeValue;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -2130,83 +2084,75 @@ pub mod Key {
 }
 unsafe extern "C" {
     #[doc = " Create a new key event instance.\n\n Creates a new key event with default values. The event must be freed using\n ghostty_key_event_free() when no longer needed.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_new"]
-    pub fn key_event_new(allocator: *const Allocator, event: *mut KeyEvent) -> Result::Type;
+    pub fn ghostty_key_event_new(allocator: *const Allocator, event: *mut KeyEvent)
+    -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Free a key event instance.\n\n Releases all resources associated with the key event. After this call,\n the event handle becomes invalid and must not be used.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_free"]
-    pub fn key_event_free(event: KeyEvent);
+    pub fn ghostty_key_event_free(event: KeyEvent);
 }
 unsafe extern "C" {
     #[doc = " Set the key action (press, release, repeat).\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_set_action"]
-    pub fn key_event_set_action(event: KeyEvent, action: KeyAction::Type);
+    pub fn ghostty_key_event_set_action(event: KeyEvent, action: KeyAction::Type);
 }
 unsafe extern "C" {
     #[doc = " Get the key action (press, release, repeat).\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_get_action"]
-    pub fn key_event_get_action(event: KeyEvent) -> KeyAction::Type;
+    pub fn ghostty_key_event_get_action(event: KeyEvent) -> KeyAction::Type;
 }
 unsafe extern "C" {
     #[doc = " Set the physical key code.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_set_key"]
-    pub fn key_event_set_key(event: KeyEvent, key: Key::Type);
+    pub fn ghostty_key_event_set_key(event: KeyEvent, key: Key::Type);
 }
 unsafe extern "C" {
     #[doc = " Get the physical key code.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_get_key"]
-    pub fn key_event_get_key(event: KeyEvent) -> Key::Type;
+    pub fn ghostty_key_event_get_key(event: KeyEvent) -> Key::Type;
 }
 unsafe extern "C" {
     #[doc = " Set the modifier keys bitmask.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_set_mods"]
-    pub fn key_event_set_mods(event: KeyEvent, mods: Mods);
+    pub fn ghostty_key_event_set_mods(event: KeyEvent, mods: Mods);
 }
 unsafe extern "C" {
     #[doc = " Get the modifier keys bitmask.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_get_mods"]
-    pub fn key_event_get_mods(event: KeyEvent) -> Mods;
+    pub fn ghostty_key_event_get_mods(event: KeyEvent) -> Mods;
 }
 unsafe extern "C" {
     #[doc = " Set the consumed modifiers bitmask.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_set_consumed_mods"]
-    pub fn key_event_set_consumed_mods(event: KeyEvent, consumed_mods: Mods);
+    pub fn ghostty_key_event_set_consumed_mods(event: KeyEvent, consumed_mods: Mods);
 }
 unsafe extern "C" {
     #[doc = " Get the consumed modifiers bitmask.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_get_consumed_mods"]
-    pub fn key_event_get_consumed_mods(event: KeyEvent) -> Mods;
+    pub fn ghostty_key_event_get_consumed_mods(event: KeyEvent) -> Mods;
 }
 unsafe extern "C" {
     #[doc = " Set whether the key event is part of a composition sequence.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_set_composing"]
-    pub fn key_event_set_composing(event: KeyEvent, composing: bool);
+    pub fn ghostty_key_event_set_composing(event: KeyEvent, composing: bool);
 }
 unsafe extern "C" {
     #[doc = " Get whether the key event is part of a composition sequence.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_get_composing"]
-    pub fn key_event_get_composing(event: KeyEvent) -> bool;
+    pub fn ghostty_key_event_get_composing(event: KeyEvent) -> bool;
 }
 unsafe extern "C" {
     #[doc = " Set the UTF-8 text generated by the key for the current keyboard layout.\n\n Must contain the unmodified character before any Ctrl/Meta transformations.\n The encoder derives modifier sequences from the logical key and mods\n bitmask, not from this text. Do not pass C0 control characters\n (U+0000-U+001F, U+007F) or platform function key codes (e.g. macOS PUA\n U+F700-U+F8FF); pass NULL instead and let the encoder use the logical key.\n\n The key event does NOT take ownership of the text pointer. The caller\n must ensure the string remains valid for the lifetime needed by the event.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_set_utf8"]
-    pub fn key_event_set_utf8(event: KeyEvent, utf8: *const ::std::os::raw::c_char, len: usize);
+    pub fn ghostty_key_event_set_utf8(
+        event: KeyEvent,
+        utf8: *const ::std::os::raw::c_char,
+        len: usize,
+    );
 }
 unsafe extern "C" {
     #[doc = " Get the UTF-8 text generated by the key event.\n\n The returned pointer is valid until the event is freed or the UTF-8 text is modified.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_get_utf8"]
-    pub fn key_event_get_utf8(event: KeyEvent, len: *mut usize) -> *const ::std::os::raw::c_char;
+    pub fn ghostty_key_event_get_utf8(
+        event: KeyEvent,
+        len: *mut usize,
+    ) -> *const ::std::os::raw::c_char;
 }
 unsafe extern "C" {
     #[doc = " Set the unshifted Unicode codepoint.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_set_unshifted_codepoint"]
-    pub fn key_event_set_unshifted_codepoint(event: KeyEvent, codepoint: u32);
+    pub fn ghostty_key_event_set_unshifted_codepoint(event: KeyEvent, codepoint: u32);
 }
 unsafe extern "C" {
     #[doc = " Get the unshifted Unicode codepoint.\n\n"]
-    #[link_name = "\u{1}ghostty_key_event_get_unshifted_codepoint"]
-    pub fn key_event_get_unshifted_codepoint(event: KeyEvent) -> u32;
+    pub fn ghostty_key_event_get_unshifted_codepoint(event: KeyEvent) -> u32;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -2249,18 +2195,18 @@ pub mod KeyEncoderOption {
 }
 unsafe extern "C" {
     #[doc = " Create a new key encoder instance.\n\n Creates a new key encoder with default options. The encoder can be configured\n using ghostty_key_encoder_setopt() and must be freed using\n ghostty_key_encoder_free() when no longer needed.\n\n"]
-    #[link_name = "\u{1}ghostty_key_encoder_new"]
-    pub fn key_encoder_new(allocator: *const Allocator, encoder: *mut KeyEncoder) -> Result::Type;
+    pub fn ghostty_key_encoder_new(
+        allocator: *const Allocator,
+        encoder: *mut KeyEncoder,
+    ) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Free a key encoder instance.\n\n Releases all resources associated with the key encoder. After this call,\n the encoder handle becomes invalid and must not be used.\n\n"]
-    #[link_name = "\u{1}ghostty_key_encoder_free"]
-    pub fn key_encoder_free(encoder: KeyEncoder);
+    pub fn ghostty_key_encoder_free(encoder: KeyEncoder);
 }
 unsafe extern "C" {
     #[doc = " Set an option on the key encoder.\n\n Configures the behavior of the key encoder. Options control various aspects\n of encoding such as terminal modes (cursor key application mode, keypad mode),\n protocol selection (Kitty keyboard protocol flags), and platform-specific\n behaviors (macOS option-as-alt).\n\n If you are using a terminal instance, you can set the key encoding\n options based on the active terminal state (e.g. legacy vs Kitty mode\n and associated flags) with ghostty_key_encoder_setopt_from_terminal().\n\n A null pointer value does nothing. It does not reset the value to the\n default. The setopt call will do nothing.\n\n"]
-    #[link_name = "\u{1}ghostty_key_encoder_setopt"]
-    pub fn key_encoder_setopt(
+    pub fn ghostty_key_encoder_setopt(
         encoder: KeyEncoder,
         option: KeyEncoderOption::Type,
         value: *const ::std::os::raw::c_void,
@@ -2268,13 +2214,11 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Set encoder options from a terminal's current state.\n\n Reads the terminal's current modes and flags and applies them to the\n encoder's options. This sets cursor key application mode, keypad mode,\n alt escape prefix, modifyOtherKeys state, and Kitty keyboard protocol\n flags from the terminal state.\n\n Note that the `macos_option_as_alt` option cannot be determined from\n terminal state and is reset to `GHOSTTY_OPTION_AS_ALT_FALSE` by this\n call. Use ghostty_key_encoder_setopt() to set it afterward if needed.\n\n"]
-    #[link_name = "\u{1}ghostty_key_encoder_setopt_from_terminal"]
-    pub fn key_encoder_setopt_from_terminal(encoder: KeyEncoder, terminal: Terminal);
+    pub fn ghostty_key_encoder_setopt_from_terminal(encoder: KeyEncoder, terminal: Terminal);
 }
 unsafe extern "C" {
     #[doc = " Encode a key event into a terminal escape sequence.\n\n Converts a key event into the appropriate terminal escape sequence based on\n the encoder's current options. The sequence is written to the provided buffer.\n\n Not all key events produce output. For example, unmodified modifier keys\n typically don't generate escape sequences. Check the out_len parameter to\n determine if any data was written.\n\n If the output buffer is too small, this function returns GHOSTTY_OUT_OF_SPACE\n and out_len will contain the required buffer size. The caller can then\n allocate a larger buffer and call the function again.\n\n\n ## Example: Calculate required buffer size\n\n // Query the required size with a NULL buffer (always returns OUT_OF_SPACE)\n size_t required = 0;\n GhosttyResult result = ghostty_key_encoder_encode(encoder, event, NULL, 0, &required);\n assert(result == GHOSTTY_OUT_OF_SPACE);\n\n // Allocate buffer of required size\n char *buf = malloc(required);\n\n // Encode with properly sized buffer\n size_t written = 0;\n result = ghostty_key_encoder_encode(encoder, event, buf, required, &written);\n assert(result == GHOSTTY_SUCCESS);\n\n // Use the encoded sequence...\n\n free(buf);\n\n ## Example: Direct encoding with static buffer\n\n // Most escape sequences are short, so a static buffer often suffices\n char buf[128];\n size_t written = 0;\n GhosttyResult result = ghostty_key_encoder_encode(encoder, event, buf, sizeof(buf), &written);\n\n if (result == GHOSTTY_SUCCESS) {\n   // Write the encoded sequence to the terminal\n   write(pty_fd, buf, written);\n } else if (result == GHOSTTY_OUT_OF_SPACE) {\n   // Buffer too small, written contains required size\n   char *dynamic_buf = malloc(written);\n   result = ghostty_key_encoder_encode(encoder, event, dynamic_buf, written, &written);\n   assert(result == GHOSTTY_SUCCESS);\n   write(pty_fd, dynamic_buf, written);\n   free(dynamic_buf);\n }\n"]
-    #[link_name = "\u{1}ghostty_key_encoder_encode"]
-    pub fn key_encoder_encode(
+    pub fn ghostty_key_encoder_encode(
         encoder: KeyEncoder,
         event: KeyEvent,
         out_buf: *mut ::std::os::raw::c_char,
@@ -2331,58 +2275,53 @@ const _: () = {
 };
 unsafe extern "C" {
     #[doc = " Create a new mouse event instance.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_new"]
-    pub fn mouse_event_new(allocator: *const Allocator, event: *mut MouseEvent) -> Result::Type;
+    pub fn ghostty_mouse_event_new(
+        allocator: *const Allocator,
+        event: *mut MouseEvent,
+    ) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Free a mouse event instance.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_free"]
-    pub fn mouse_event_free(event: MouseEvent);
+    pub fn ghostty_mouse_event_free(event: MouseEvent);
 }
 unsafe extern "C" {
     #[doc = " Set the event action.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_set_action"]
-    pub fn mouse_event_set_action(event: MouseEvent, action: MouseAction::Type);
+    pub fn ghostty_mouse_event_set_action(event: MouseEvent, action: MouseAction::Type);
 }
 unsafe extern "C" {
     #[doc = " Get the event action.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_get_action"]
-    pub fn mouse_event_get_action(event: MouseEvent) -> MouseAction::Type;
+    pub fn ghostty_mouse_event_get_action(event: MouseEvent) -> MouseAction::Type;
 }
 unsafe extern "C" {
     #[doc = " Set the event button.\n\n This sets a concrete button identity for the event.\n To represent \"no button\" (for motion events), use\n ghostty_mouse_event_clear_button().\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_set_button"]
-    pub fn mouse_event_set_button(event: MouseEvent, button: MouseButton::Type);
+    pub fn ghostty_mouse_event_set_button(event: MouseEvent, button: MouseButton::Type);
 }
 unsafe extern "C" {
     #[doc = " Clear the event button.\n\n This sets the event button to \"none\".\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_clear_button"]
-    pub fn mouse_event_clear_button(event: MouseEvent);
+    pub fn ghostty_mouse_event_clear_button(event: MouseEvent);
 }
 unsafe extern "C" {
     #[doc = " Get the event button.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_get_button"]
-    pub fn mouse_event_get_button(event: MouseEvent, out_button: *mut MouseButton::Type) -> bool;
+    pub fn ghostty_mouse_event_get_button(
+        event: MouseEvent,
+        out_button: *mut MouseButton::Type,
+    ) -> bool;
 }
 unsafe extern "C" {
     #[doc = " Set keyboard modifiers held during the event.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_set_mods"]
-    pub fn mouse_event_set_mods(event: MouseEvent, mods: Mods);
+    pub fn ghostty_mouse_event_set_mods(event: MouseEvent, mods: Mods);
 }
 unsafe extern "C" {
     #[doc = " Get keyboard modifiers held during the event.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_get_mods"]
-    pub fn mouse_event_get_mods(event: MouseEvent) -> Mods;
+    pub fn ghostty_mouse_event_get_mods(event: MouseEvent) -> Mods;
 }
 unsafe extern "C" {
     #[doc = " Set the event position in surface-space pixels.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_set_position"]
-    pub fn mouse_event_set_position(event: MouseEvent, position: MousePosition);
+    pub fn ghostty_mouse_event_set_position(event: MouseEvent, position: MousePosition);
 }
 unsafe extern "C" {
     #[doc = " Get the event position in surface-space pixels.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_event_get_position"]
-    pub fn mouse_event_get_position(event: MouseEvent) -> MousePosition;
+    pub fn ghostty_mouse_event_get_position(event: MouseEvent) -> MousePosition;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -2476,21 +2415,18 @@ pub mod MouseEncoderOption {
 }
 unsafe extern "C" {
     #[doc = " Create a new mouse encoder instance.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_encoder_new"]
-    pub fn mouse_encoder_new(
+    pub fn ghostty_mouse_encoder_new(
         allocator: *const Allocator,
         encoder: *mut MouseEncoder,
     ) -> Result::Type;
 }
 unsafe extern "C" {
     #[doc = " Free a mouse encoder instance.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_encoder_free"]
-    pub fn mouse_encoder_free(encoder: MouseEncoder);
+    pub fn ghostty_mouse_encoder_free(encoder: MouseEncoder);
 }
 unsafe extern "C" {
     #[doc = " Set an option on the mouse encoder.\n\n A null pointer value does nothing. It does not reset to defaults.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_encoder_setopt"]
-    pub fn mouse_encoder_setopt(
+    pub fn ghostty_mouse_encoder_setopt(
         encoder: MouseEncoder,
         option: MouseEncoderOption::Type,
         value: *const ::std::os::raw::c_void,
@@ -2498,18 +2434,15 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Set encoder options from a terminal's current state.\n\n This sets tracking mode and output format from terminal state.\n It does not modify size or any-button state.\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_encoder_setopt_from_terminal"]
-    pub fn mouse_encoder_setopt_from_terminal(encoder: MouseEncoder, terminal: Terminal);
+    pub fn ghostty_mouse_encoder_setopt_from_terminal(encoder: MouseEncoder, terminal: Terminal);
 }
 unsafe extern "C" {
     #[doc = " Reset internal encoder state.\n\n This clears motion deduplication state (last tracked cell).\n\n"]
-    #[link_name = "\u{1}ghostty_mouse_encoder_reset"]
-    pub fn mouse_encoder_reset(encoder: MouseEncoder);
+    pub fn ghostty_mouse_encoder_reset(encoder: MouseEncoder);
 }
 unsafe extern "C" {
     #[doc = " Encode a mouse event into a terminal escape sequence.\n\n Not all mouse events produce output. In such cases this returns\n GHOSTTY_SUCCESS with out_len set to 0.\n\n If the output buffer is too small, this returns GHOSTTY_OUT_OF_SPACE\n and out_len contains the required size.\n\n         or another error code\n"]
-    #[link_name = "\u{1}ghostty_mouse_encoder_encode"]
-    pub fn mouse_encoder_encode(
+    pub fn ghostty_mouse_encoder_encode(
         encoder: MouseEncoder,
         event: MouseEvent,
         out_buf: *mut ::std::os::raw::c_char,
@@ -2519,13 +2452,11 @@ unsafe extern "C" {
 }
 unsafe extern "C" {
     #[doc = " Check if paste data is safe to paste into the terminal.\n\n Data is considered unsafe if it contains:\n - Newlines (`\\n`) which can inject commands\n - The bracketed paste end sequence (`\\x1b[201~`) which can be used\n   to exit bracketed paste mode and inject commands\n\n This check is conservative and considers data unsafe regardless of\n current terminal state.\n"]
-    #[link_name = "\u{1}ghostty_paste_is_safe"]
-    pub fn paste_is_safe(data: *const ::std::os::raw::c_char, len: usize) -> bool;
+    pub fn ghostty_paste_is_safe(data: *const ::std::os::raw::c_char, len: usize) -> bool;
 }
 unsafe extern "C" {
     #[doc = " Encode paste data for writing to the terminal pty.\n\n This function prepares paste data for terminal input by:\n - Stripping unsafe control bytes (NUL, ESC, DEL, etc.) by replacing\n   them with spaces\n - Wrapping the data in bracketed paste sequences if @p bracketed is true\n - Replacing newlines with carriage returns if @p bracketed is false\n\n The input @p data buffer is modified in place during encoding. The\n encoded result (potentially with bracketed paste prefix/suffix) is\n written to the output buffer.\n\n If the output buffer is too small, the function returns\n GHOSTTY_OUT_OF_SPACE and sets the required size in @p out_written.\n The caller can then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size.\n         is too small"]
-    #[link_name = "\u{1}ghostty_paste_encode"]
-    pub fn paste_encode(
+    pub fn ghostty_paste_encode(
         data: *mut ::std::os::raw::c_char,
         data_len: usize,
         bracketed: bool,

@@ -56,7 +56,7 @@ impl<'alloc> Parser<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::Allocator) -> Result<Self> {
         let mut raw: ffi::SgrParser = std::ptr::null_mut();
-        let result = unsafe { ffi::sgr_new(alloc, &raw mut raw) };
+        let result = unsafe { ffi::ghostty_sgr_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -90,8 +90,9 @@ impl<'alloc> Parser<'alloc> {
             }
             None => std::ptr::null(),
         };
-        let result =
-            unsafe { ffi::sgr_set_params(self.0.as_raw(), params.as_ptr(), sep, params.len()) };
+        let result = unsafe {
+            ffi::ghostty_sgr_set_params(self.0.as_raw(), params.as_ptr(), sep, params.len())
+        };
         from_result(result)
     }
 
@@ -109,7 +110,7 @@ impl<'alloc> Parser<'alloc> {
     )]
     pub fn next(&mut self) -> Result<Option<Attribute<'_>>> {
         let mut raw_attr = ffi::SgrAttribute::default();
-        let has_next = unsafe { ffi::sgr_next(self.0.as_raw(), &raw mut raw_attr) };
+        let has_next = unsafe { ffi::ghostty_sgr_next(self.0.as_raw(), &raw mut raw_attr) };
         if has_next {
             // This shouldn't really *ever* fail, so the fact it failed
             // suggests we should stop anyways.
@@ -125,13 +126,13 @@ impl<'alloc> Parser<'alloc> {
     /// After calling this, [`Parser::next`] will start from the beginning of the
     /// parameter list again.
     pub fn reset(&mut self) {
-        unsafe { ffi::sgr_reset(self.0.as_raw()) }
+        unsafe { ffi::ghostty_sgr_reset(self.0.as_raw()) }
     }
 }
 
 impl Drop for Parser<'_> {
     fn drop(&mut self) {
-        unsafe { ffi::sgr_free(self.0.as_raw()) }
+        unsafe { ffi::ghostty_sgr_free(self.0.as_raw()) }
     }
 }
 

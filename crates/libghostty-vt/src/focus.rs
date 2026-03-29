@@ -43,7 +43,7 @@ impl Event {
     pub fn encode(self, buf: &mut [u8]) -> Result<usize> {
         let mut written: usize = 0;
         let result = unsafe {
-            ffi::focus_encode(
+            ffi::ghostty_focus_encode(
                 self.into(),
                 buf.as_mut_ptr().cast(),
                 buf.len(),

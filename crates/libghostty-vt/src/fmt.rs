@@ -57,7 +57,12 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
     ) -> Result<Self> {
         let mut raw: ffi::Formatter = std::ptr::null_mut();
         let result = unsafe {
-            ffi::formatter_terminal_new(alloc, &raw mut raw, terminal.inner.as_raw(), opts.into())
+            ffi::ghostty_formatter_terminal_new(
+                alloc,
+                &raw mut raw,
+                terminal.inner.as_raw(),
+                opts.into(),
+            )
         };
         from_result(result)?;
 
@@ -84,7 +89,7 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
         let mut bytes = std::ptr::null_mut();
         let mut len = 0usize;
         let result = unsafe {
-            ffi::formatter_format_alloc(
+            ffi::ghostty_formatter_format_alloc(
                 self.inner.as_raw(),
                 alloc,
                 std::ptr::from_mut(&mut bytes),
@@ -105,7 +110,7 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
     pub fn format_buf(&mut self, buf: &mut [u8]) -> Result<usize> {
         let mut len = 0usize;
         let result = unsafe {
-            ffi::formatter_format_buf(
+            ffi::ghostty_formatter_format_buf(
                 self.inner.as_raw(),
                 std::ptr::from_mut(buf).cast(),
                 buf.len(),
@@ -123,7 +128,7 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
     pub fn format_len(&mut self) -> Result<usize> {
         let mut len = 0usize;
         let result = unsafe {
-            ffi::formatter_format_buf(
+            ffi::ghostty_formatter_format_buf(
                 self.inner.as_raw(),
                 std::ptr::null_mut(),
                 0,
@@ -141,7 +146,7 @@ impl<'t, 'alloc: 'cb, 'cb: 't> Formatter<'t, 'alloc, 'cb> {
 
 impl Drop for Formatter<'_, '_, '_> {
     fn drop(&mut self) {
-        unsafe { ffi::formatter_free(self.inner.as_raw()) }
+        unsafe { ffi::ghostty_formatter_free(self.inner.as_raw()) }
     }
 }
 

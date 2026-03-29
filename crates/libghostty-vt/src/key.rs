@@ -44,7 +44,7 @@ impl<'alloc> Encoder<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::Allocator) -> Result<Self> {
         let mut raw: ffi::KeyEncoder = std::ptr::null_mut();
-        let result = unsafe { ffi::key_encoder_new(alloc, &raw mut raw) };
+        let result = unsafe { ffi::ghostty_key_encoder_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self(Object::new(raw)?))
     }
@@ -54,7 +54,7 @@ impl<'alloc> Encoder<'alloc> {
         option: ffi::KeyEncoderOption::Type,
         value: *const std::ffi::c_void,
     ) {
-        unsafe { ffi::key_encoder_setopt(self.0.as_raw(), option, value) }
+        unsafe { ffi::ghostty_key_encoder_setopt(self.0.as_raw(), option, value) }
     }
 
     /// Encode a key event into a terminal escape sequence.
@@ -112,7 +112,7 @@ impl<'alloc> Encoder<'alloc> {
     ) -> Result<usize> {
         let mut written: usize = 0;
         let result = unsafe {
-            ffi::key_encoder_encode(
+            ffi::ghostty_key_encoder_encode(
                 self.0.as_raw(),
                 event.inner.as_raw(),
                 buf.as_mut_ptr().cast(),
@@ -135,7 +135,7 @@ impl<'alloc> Encoder<'alloc> {
     /// Use [`Encoder::set_macos_option_as_alt`] to set it afterward if needed.
     pub fn set_options_from_terminal(&mut self, terminal: &Terminal<'_, '_>) -> &mut Self {
         unsafe {
-            ffi::key_encoder_setopt_from_terminal(self.0.as_raw(), terminal.inner.as_raw());
+            ffi::ghostty_key_encoder_setopt_from_terminal(self.0.as_raw(), terminal.inner.as_raw());
         }
         self
     }
@@ -197,7 +197,7 @@ impl<'alloc> Encoder<'alloc> {
 
 impl Drop for Encoder<'_> {
     fn drop(&mut self) {
-        unsafe { ffi::key_encoder_free(self.0.as_raw()) }
+        unsafe { ffi::ghostty_key_encoder_free(self.0.as_raw()) }
     }
 }
 
@@ -227,7 +227,7 @@ impl<'alloc> Event<'alloc> {
 
     unsafe fn new_inner(alloc: *const ffi::Allocator) -> Result<Self> {
         let mut raw: ffi::KeyEvent = std::ptr::null_mut();
-        let result = unsafe { ffi::key_event_new(alloc, &raw mut raw) };
+        let result = unsafe { ffi::ghostty_key_event_new(alloc, &raw mut raw) };
         from_result(result)?;
         Ok(Self {
             inner: Object::new(raw)?,
@@ -237,64 +237,66 @@ impl<'alloc> Event<'alloc> {
 
     /// Set the key action (press, release, repeat).
     pub fn set_action(&mut self, action: Action) -> &mut Self {
-        unsafe { ffi::key_event_set_action(self.inner.as_raw(), action.into()) }
+        unsafe { ffi::ghostty_key_event_set_action(self.inner.as_raw(), action.into()) }
         self
     }
 
     /// Get the key action (press, release, repeat).
     #[must_use]
     pub fn action(&self) -> Action {
-        Action::try_from(unsafe { ffi::key_event_get_action(self.inner.as_raw()) })
+        Action::try_from(unsafe { ffi::ghostty_key_event_get_action(self.inner.as_raw()) })
             .unwrap_or(Action::Press)
     }
 
     /// Set the physical key code.
     pub fn set_key(&mut self, key: Key) -> &mut Self {
-        unsafe { ffi::key_event_set_key(self.inner.as_raw(), key.into()) }
+        unsafe { ffi::ghostty_key_event_set_key(self.inner.as_raw(), key.into()) }
         self
     }
 
     /// Get the physical key code.
     #[must_use]
     pub fn key(&self) -> Key {
-        Key::try_from(unsafe { ffi::key_event_get_key(self.inner.as_raw()) })
+        Key::try_from(unsafe { ffi::ghostty_key_event_get_key(self.inner.as_raw()) })
             .unwrap_or(Key::Unidentified)
     }
 
     /// Set the modifier keys bitmask.
     pub fn set_mods(&mut self, mods: Mods) -> &mut Self {
-        unsafe { ffi::key_event_set_mods(self.inner.as_raw(), mods.bits()) }
+        unsafe { ffi::ghostty_key_event_set_mods(self.inner.as_raw(), mods.bits()) }
         self
     }
 
     /// Get the modifier keys bitmask.
     #[must_use]
     pub fn mods(&self) -> Mods {
-        Mods::from_bits_retain(unsafe { ffi::key_event_get_mods(self.inner.as_raw()) })
+        Mods::from_bits_retain(unsafe { ffi::ghostty_key_event_get_mods(self.inner.as_raw()) })
     }
 
     /// Set the consumed modifiers bitmask.
     pub fn set_consumed_mods(&mut self, mods: Mods) -> &mut Self {
-        unsafe { ffi::key_event_set_consumed_mods(self.inner.as_raw(), mods.bits()) }
+        unsafe { ffi::ghostty_key_event_set_consumed_mods(self.inner.as_raw(), mods.bits()) }
         self
     }
 
     /// Get the consumed modifiers bitmask.
     #[must_use]
     pub fn consumed_mods(&self) -> Mods {
-        Mods::from_bits_retain(unsafe { ffi::key_event_get_consumed_mods(self.inner.as_raw()) })
+        Mods::from_bits_retain(unsafe {
+            ffi::ghostty_key_event_get_consumed_mods(self.inner.as_raw())
+        })
     }
 
     /// Set whether the key event is part of a composition sequence.
     pub fn set_composing(&mut self, composing: bool) -> &mut Self {
-        unsafe { ffi::key_event_set_composing(self.inner.as_raw(), composing) }
+        unsafe { ffi::ghostty_key_event_set_composing(self.inner.as_raw(), composing) }
         self
     }
 
     /// Get whether the key event is part of a composition sequence.
     #[must_use]
     pub fn is_composing(&self) -> bool {
-        unsafe { ffi::key_event_get_composing(self.inner.as_raw()) }
+        unsafe { ffi::ghostty_key_event_get_composing(self.inner.as_raw()) }
     }
 
     /// Set the UTF-8 text generated by the key event.
@@ -306,10 +308,14 @@ impl<'alloc> Event<'alloc> {
 
         match &self.text {
             Some(text) => unsafe {
-                ffi::key_event_set_utf8(self.inner.as_raw(), text.as_ptr().cast(), text.len());
+                ffi::ghostty_key_event_set_utf8(
+                    self.inner.as_raw(),
+                    text.as_ptr().cast(),
+                    text.len(),
+                );
             },
             None => unsafe {
-                ffi::key_event_set_utf8(self.inner.as_raw(), std::ptr::null(), 0);
+                ffi::ghostty_key_event_set_utf8(self.inner.as_raw(), std::ptr::null(), 0);
             },
         }
         self
@@ -325,7 +331,7 @@ impl<'alloc> Event<'alloc> {
     /// Set the unshifted Unicode codepoint.
     pub fn set_unshifted_codepoint(&mut self, codepoint: char) -> &mut Self {
         unsafe {
-            ffi::key_event_set_unshifted_codepoint(self.inner.as_raw(), codepoint.into());
+            ffi::ghostty_key_event_set_unshifted_codepoint(self.inner.as_raw(), codepoint.into());
         }
         self
     }
@@ -334,14 +340,16 @@ impl<'alloc> Event<'alloc> {
     #[must_use]
     pub fn unshifted_codepoint(&self) -> char {
         unsafe {
-            char::from_u32_unchecked(ffi::key_event_get_unshifted_codepoint(self.inner.as_raw()))
+            char::from_u32_unchecked(ffi::ghostty_key_event_get_unshifted_codepoint(
+                self.inner.as_raw(),
+            ))
         }
     }
 }
 
 impl Drop for Event<'_> {
     fn drop(&mut self) {
-        unsafe { ffi::key_event_free(self.inner.as_raw()) }
+        unsafe { ffi::ghostty_key_event_free(self.inner.as_raw()) }
     }
 }
 
