@@ -117,6 +117,10 @@ impl Default for String {
         }
     }
 }
+unsafe extern "C" {
+    #[doc = " Return a pointer to a null-terminated JSON string describing the\n layout of every C API struct for the current target.\n\n This is primarily useful for language bindings that can't easily\n set C struct fields and need to do so via byte offsets. For example,\n WebAssembly modules can't share struct definitions with the host.\n\n Example (abbreviated):\n {\n   \"GhosttyMouseEncoderSize\": {\n     \"size\": 40,\n     \"align\": 8,\n     \"fields\": {\n       \"size\":           { \"offset\": 0,  \"size\": 8, \"type\": \"u64\" },\n       \"screen_width\":   { \"offset\": 8,  \"size\": 4, \"type\": \"u32\" },\n       \"screen_height\":  { \"offset\": 12, \"size\": 4, \"type\": \"u32\" },\n       \"cell_width\":     { \"offset\": 16, \"size\": 4, \"type\": \"u32\" },\n       \"cell_height\":    { \"offset\": 20, \"size\": 4, \"type\": \"u32\" },\n       \"padding_top\":    { \"offset\": 24, \"size\": 4, \"type\": \"u32\" },\n       \"padding_bottom\": { \"offset\": 28, \"size\": 4, \"type\": \"u32\" },\n       \"padding_right\":  { \"offset\": 32, \"size\": 4, \"type\": \"u32\" },\n       \"padding_left\":   { \"offset\": 36, \"size\": 4, \"type\": \"u32\" }\n     }\n   }\n }\n\n The returned pointer is valid for the lifetime of the process.\n"]
+    pub fn ghostty_type_json() -> *const ::std::os::raw::c_char;
+}
 #[doc = " Function table for custom memory allocator operations.\n\n This vtable defines the interface for a custom memory allocator. All\n function pointers must be valid and non-NULL.\n\n\n If you're not going to use a custom allocator, you can ignore all of\n this. All functions that take an allocator pointer allow NULL to use a\n default allocator.\n\n The interface is based on the Zig allocator interface. I'll say up front\n that it is easy to look at this interface and think \"wow, this is really\n overcomplicated\". The reason for this complexity is well thought out by\n the Zig folks, and it enables a diverse set of allocation strategies\n as shown by the Zig ecosystem. As a consolation, please note that many\n of the arguments are only needed for advanced use cases and can be\n safely ignored in simple implementations. For example, if you look at\n the Zig implementation of the libc allocator in `lib/std/heap.zig`\n (search for CAllocator), you'll see it is very simple.\n\n We chose to align with the Zig allocator interface because:\n\n   1. It is a proven interface that serves a wide variety of use cases\n      in the real world via the Zig ecosystem. It's shown to work.\n\n   2. Our core implementation itself is Zig, and this lets us very\n      cheaply and easily convert between C and Zig allocators.\n\n NOTE(mitchellh): In the future, we can have default implementations of\n resize/remap and allow those to be null."]
 #[repr(C)]
 #[derive(Debug, Default, Copy, Clone)]
@@ -397,80 +401,6 @@ unsafe extern "C" {
         out_written: *mut usize,
     ) -> Result::Type;
 }
-#[doc = " A packed 16-bit terminal mode.\n\n Encodes a mode value (bits 0–14) and an ANSI flag (bit 15) into a\n single 16-bit integer. Use the inline helper functions to construct\n and inspect modes rather than manipulating bits directly."]
-pub type Mode = u16;
-pub mod ModeReportState {
-    #[doc = " DECRPM report state values.\n\n These correspond to the Ps2 parameter in a DECRPM response\n sequence (CSI ? Ps1 ; Ps2 $ y)."]
-    pub type Type = ::std::os::raw::c_uint;
-    #[doc = " Mode is not recognized"]
-    pub const NOT_RECOGNIZED: Type = 0;
-    #[doc = " Mode is set (enabled)"]
-    pub const SET: Type = 1;
-    #[doc = " Mode is reset (disabled)"]
-    pub const RESET: Type = 2;
-    #[doc = " Mode is permanently set"]
-    pub const PERMANENTLY_SET: Type = 3;
-    #[doc = " Mode is permanently reset"]
-    pub const PERMANENTLY_RESET: Type = 4;
-}
-unsafe extern "C" {
-    #[doc = " Encode a DECRPM (DEC Private Mode Report) response sequence.\n\n Writes a mode report escape sequence into the provided buffer.\n The generated sequence has the form:\n - DEC private mode: CSI ? Ps1 ; Ps2 $ y\n - ANSI mode:        CSI Ps1 ; Ps2 $ y\n\n If the buffer is too small, the function returns GHOSTTY_OUT_OF_SPACE\n and writes the required buffer size to @p out_written. The caller can\n then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size.\n         is too small"]
-    pub fn ghostty_mode_report_encode(
-        mode: Mode,
-        state: ModeReportState::Type,
-        buf: *mut ::std::os::raw::c_char,
-        buf_len: usize,
-        out_written: *mut usize,
-    ) -> Result::Type;
-}
-pub mod SizeReportStyle {
-    #[doc = " Size report style.\n\n Determines the output format for the terminal size report."]
-    pub type Type = ::std::os::raw::c_uint;
-    #[doc = " In-band size report (mode 2048): ESC [ 48 ; rows ; cols ; height ; width t"]
-    pub const MODE_2048: Type = 0;
-    #[doc = " XTWINOPS text area size in pixels: ESC [ 4 ; height ; width t"]
-    pub const CSI_14_T: Type = 1;
-    #[doc = " XTWINOPS cell size in pixels: ESC [ 6 ; height ; width t"]
-    pub const CSI_16_T: Type = 2;
-    #[doc = " XTWINOPS text area size in characters: ESC [ 8 ; rows ; cols t"]
-    pub const CSI_18_T: Type = 3;
-}
-#[doc = " Terminal size information for encoding size reports."]
-#[repr(C)]
-#[derive(Debug, Default, Copy, Clone)]
-pub struct SizeReportSize {
-    #[doc = " Terminal row count in cells."]
-    pub rows: u16,
-    #[doc = " Terminal column count in cells."]
-    pub columns: u16,
-    #[doc = " Width of a single terminal cell in pixels."]
-    pub cell_width: u32,
-    #[doc = " Height of a single terminal cell in pixels."]
-    pub cell_height: u32,
-}
-#[allow(clippy::unnecessary_operation, clippy::identity_op)]
-const _: () = {
-    ["Size of SizeReportSize"][::std::mem::size_of::<SizeReportSize>() - 12usize];
-    ["Alignment of SizeReportSize"][::std::mem::align_of::<SizeReportSize>() - 4usize];
-    ["Offset of field: SizeReportSize::rows"]
-        [::std::mem::offset_of!(SizeReportSize, rows) - 0usize];
-    ["Offset of field: SizeReportSize::columns"]
-        [::std::mem::offset_of!(SizeReportSize, columns) - 2usize];
-    ["Offset of field: SizeReportSize::cell_width"]
-        [::std::mem::offset_of!(SizeReportSize, cell_width) - 4usize];
-    ["Offset of field: SizeReportSize::cell_height"]
-        [::std::mem::offset_of!(SizeReportSize, cell_height) - 8usize];
-};
-unsafe extern "C" {
-    #[doc = " Encode a terminal size report into an escape sequence.\n\n Encodes a size report in the format specified by @p style into the\n provided buffer.\n\n If the buffer is too small, the function returns GHOSTTY_OUT_OF_SPACE\n and writes the required buffer size to @p out_written. The caller can\n then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size.\n         is too small"]
-    pub fn ghostty_size_report_encode(
-        style: SizeReportStyle::Type,
-        size: SizeReportSize,
-        buf: *mut ::std::os::raw::c_char,
-        buf_len: usize,
-        out_written: *mut usize,
-    ) -> Result::Type;
-}
 #[doc = " Opaque cell value.\n\n Represents a single terminal cell. The internal layout is opaque and\n must be queried via ghostty_cell_get(). Obtain cell values from\n terminal query APIs.\n"]
 pub type Cell = u64;
 #[doc = " Opaque row value.\n\n Represents a single terminal row. The internal layout is opaque and\n must be queried via ghostty_row_get(). Obtain row values from\n terminal query APIs.\n"]
@@ -746,8 +676,123 @@ unsafe extern "C" {
     ) -> Result::Type;
 }
 unsafe extern "C" {
+    #[doc = " Get the hyperlink URI for the cell at the grid reference's position.\n\n Writes the URI bytes into the provided buffer. If the cell has no\n hyperlink, out_len is set to 0 and GHOSTTY_SUCCESS is returned.\n\n If the buffer is too small (or NULL), the function returns\n GHOSTTY_OUT_OF_SPACE and writes the required number of bytes to\n out_len. The caller can then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size in bytes.\n         node is NULL, GHOSTTY_OUT_OF_SPACE if the buffer is too small\n"]
+    pub fn ghostty_grid_ref_hyperlink_uri(
+        ref_: *const GridRef,
+        buf: *mut u8,
+        buf_len: usize,
+        out_len: *mut usize,
+    ) -> Result::Type;
+}
+unsafe extern "C" {
     #[doc = " Get the style of the cell at the grid reference's position.\n\n         node is NULL\n"]
     pub fn ghostty_grid_ref_style(ref_: *const GridRef, out_style: *mut Style) -> Result::Type;
+}
+#[doc = " A selection range defined by two grid references.\n\n This is a sized struct. Use GHOSTTY_INIT_SIZED() to initialize it.\n"]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct Selection {
+    #[doc = " Size of this struct in bytes. Must be set to sizeof(GhosttySelection)."]
+    pub size: usize,
+    #[doc = " Start of the selection range (inclusive)."]
+    pub start: GridRef,
+    #[doc = " End of the selection range (inclusive)."]
+    pub end: GridRef,
+    #[doc = " Whether the selection is rectangular (block) rather than linear."]
+    pub rectangle: bool,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Selection"][::std::mem::size_of::<Selection>() - 64usize];
+    ["Alignment of Selection"][::std::mem::align_of::<Selection>() - 8usize];
+    ["Offset of field: Selection::size"][::std::mem::offset_of!(Selection, size) - 0usize];
+    ["Offset of field: Selection::start"][::std::mem::offset_of!(Selection, start) - 8usize];
+    ["Offset of field: Selection::end"][::std::mem::offset_of!(Selection, end) - 32usize];
+    ["Offset of field: Selection::rectangle"]
+        [::std::mem::offset_of!(Selection, rectangle) - 56usize];
+};
+impl Default for Selection {
+    fn default() -> Self {
+        let mut s = ::std::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::std::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
+#[doc = " A packed 16-bit terminal mode.\n\n Encodes a mode value (bits 0–14) and an ANSI flag (bit 15) into a\n single 16-bit integer. Use the inline helper functions to construct\n and inspect modes rather than manipulating bits directly."]
+pub type Mode = u16;
+pub mod ModeReportState {
+    #[doc = " DECRPM report state values.\n\n These correspond to the Ps2 parameter in a DECRPM response\n sequence (CSI ? Ps1 ; Ps2 $ y)."]
+    pub type Type = ::std::os::raw::c_uint;
+    #[doc = " Mode is not recognized"]
+    pub const NOT_RECOGNIZED: Type = 0;
+    #[doc = " Mode is set (enabled)"]
+    pub const SET: Type = 1;
+    #[doc = " Mode is reset (disabled)"]
+    pub const RESET: Type = 2;
+    #[doc = " Mode is permanently set"]
+    pub const PERMANENTLY_SET: Type = 3;
+    #[doc = " Mode is permanently reset"]
+    pub const PERMANENTLY_RESET: Type = 4;
+}
+unsafe extern "C" {
+    #[doc = " Encode a DECRPM (DEC Private Mode Report) response sequence.\n\n Writes a mode report escape sequence into the provided buffer.\n The generated sequence has the form:\n - DEC private mode: CSI ? Ps1 ; Ps2 $ y\n - ANSI mode:        CSI Ps1 ; Ps2 $ y\n\n If the buffer is too small, the function returns GHOSTTY_OUT_OF_SPACE\n and writes the required buffer size to @p out_written. The caller can\n then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size.\n         is too small"]
+    pub fn ghostty_mode_report_encode(
+        mode: Mode,
+        state: ModeReportState::Type,
+        buf: *mut ::std::os::raw::c_char,
+        buf_len: usize,
+        out_written: *mut usize,
+    ) -> Result::Type;
+}
+pub mod SizeReportStyle {
+    #[doc = " Size report style.\n\n Determines the output format for the terminal size report."]
+    pub type Type = ::std::os::raw::c_uint;
+    #[doc = " In-band size report (mode 2048): ESC [ 48 ; rows ; cols ; height ; width t"]
+    pub const MODE_2048: Type = 0;
+    #[doc = " XTWINOPS text area size in pixels: ESC [ 4 ; height ; width t"]
+    pub const CSI_14_T: Type = 1;
+    #[doc = " XTWINOPS cell size in pixels: ESC [ 6 ; height ; width t"]
+    pub const CSI_16_T: Type = 2;
+    #[doc = " XTWINOPS text area size in characters: ESC [ 8 ; rows ; cols t"]
+    pub const CSI_18_T: Type = 3;
+}
+#[doc = " Terminal size information for encoding size reports."]
+#[repr(C)]
+#[derive(Debug, Default, Copy, Clone)]
+pub struct SizeReportSize {
+    #[doc = " Terminal row count in cells."]
+    pub rows: u16,
+    #[doc = " Terminal column count in cells."]
+    pub columns: u16,
+    #[doc = " Width of a single terminal cell in pixels."]
+    pub cell_width: u32,
+    #[doc = " Height of a single terminal cell in pixels."]
+    pub cell_height: u32,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of SizeReportSize"][::std::mem::size_of::<SizeReportSize>() - 12usize];
+    ["Alignment of SizeReportSize"][::std::mem::align_of::<SizeReportSize>() - 4usize];
+    ["Offset of field: SizeReportSize::rows"]
+        [::std::mem::offset_of!(SizeReportSize, rows) - 0usize];
+    ["Offset of field: SizeReportSize::columns"]
+        [::std::mem::offset_of!(SizeReportSize, columns) - 2usize];
+    ["Offset of field: SizeReportSize::cell_width"]
+        [::std::mem::offset_of!(SizeReportSize, cell_width) - 4usize];
+    ["Offset of field: SizeReportSize::cell_height"]
+        [::std::mem::offset_of!(SizeReportSize, cell_height) - 8usize];
+};
+unsafe extern "C" {
+    #[doc = " Encode a terminal size report into an escape sequence.\n\n Encodes a size report in the format specified by @p style into the\n provided buffer.\n\n If the buffer is too small, the function returns GHOSTTY_OUT_OF_SPACE\n and writes the required buffer size to @p out_written. The caller can\n then retry with a sufficiently sized buffer.\n\n             GHOSTTY_OUT_OF_SPACE, the required buffer size.\n         is too small"]
+    pub fn ghostty_size_report_encode(
+        style: SizeReportStyle::Type,
+        size: SizeReportSize,
+        buf: *mut ::std::os::raw::c_char,
+        buf_len: usize,
+        out_written: *mut usize,
+    ) -> Result::Type;
 }
 #[doc = " A coordinate in the terminal grid.\n"]
 #[repr(C)]
@@ -1033,6 +1078,14 @@ pub mod TerminalOption {
     pub const COLOR_CURSOR: Type = 13;
     #[doc = " Set the default 256-color palette.\n\n The value must point to an array of exactly 256 GhosttyColorRgb values.\n A NULL value pointer resets to the built-in default palette.\n\n Input type: GhosttyColorRgb[256]*"]
     pub const COLOR_PALETTE: Type = 14;
+    #[doc = " Set the Kitty image storage limit in bytes.\n\n Applied to all initialized screens (primary and alternate).\n A value of zero disables the Kitty graphics protocol entirely,\n deleting all stored images and placements. A NULL value pointer\n is equivalent to zero (disables). Has no effect when Kitty graphics\n are disabled at build time.\n\n Input type: uint64_t*"]
+    pub const KITTY_IMAGE_STORAGE_LIMIT: Type = 15;
+    #[doc = " Enable or disable Kitty image loading via the file medium.\n\n A NULL value pointer is a no-op. Has no effect when Kitty graphics\n are disabled at build time.\n\n Input type: bool*"]
+    pub const KITTY_IMAGE_MEDIUM_FILE: Type = 16;
+    #[doc = " Enable or disable Kitty image loading via the temporary file medium.\n\n A NULL value pointer is a no-op. Has no effect when Kitty graphics\n are disabled at build time.\n\n Input type: bool*"]
+    pub const KITTY_IMAGE_MEDIUM_TEMP_FILE: Type = 17;
+    #[doc = " Enable or disable Kitty image loading via the shared memory medium.\n\n A NULL value pointer is a no-op. Has no effect when Kitty graphics\n are disabled at build time.\n\n Input type: bool*"]
+    pub const KITTY_IMAGE_MEDIUM_SHARED_MEM: Type = 18;
 }
 pub mod TerminalData {
     #[doc = " Terminal data types.\n\n These values specify what type of data to extract from a terminal\n using `ghostty_terminal_get`.\n"]
@@ -1089,6 +1142,14 @@ pub mod TerminalData {
     pub const COLOR_CURSOR_DEFAULT: Type = 24;
     #[doc = " The default 256-color palette (ignoring any OSC overrides).\n\n Output type: GhosttyColorRgb[256] *"]
     pub const COLOR_PALETTE_DEFAULT: Type = 25;
+    #[doc = " The Kitty image storage limit in bytes for the active screen.\n\n A value of zero means the Kitty graphics protocol is disabled.\n Returns GHOSTTY_NO_VALUE when Kitty graphics are disabled at build time.\n\n Output type: uint64_t *"]
+    pub const KITTY_IMAGE_STORAGE_LIMIT: Type = 26;
+    #[doc = " Whether the file medium is enabled for Kitty image loading on the\n active screen.\n\n Returns GHOSTTY_NO_VALUE when Kitty graphics are disabled at build time.\n\n Output type: bool *"]
+    pub const KITTY_IMAGE_MEDIUM_FILE: Type = 27;
+    #[doc = " Whether the temporary file medium is enabled for Kitty image loading\n on the active screen.\n\n Returns GHOSTTY_NO_VALUE when Kitty graphics are disabled at build time.\n\n Output type: bool *"]
+    pub const KITTY_IMAGE_MEDIUM_TEMP_FILE: Type = 28;
+    #[doc = " Whether the shared memory medium is enabled for Kitty image loading\n on the active screen.\n\n Returns GHOSTTY_NO_VALUE when Kitty graphics are disabled at build time.\n\n Output type: bool *"]
+    pub const KITTY_IMAGE_MEDIUM_SHARED_MEM: Type = 29;
 }
 unsafe extern "C" {
     #[doc = " Create a new terminal instance.\n\n"]
@@ -1272,11 +1333,13 @@ pub struct FormatterTerminalOptions {
     pub trim: bool,
     #[doc = " Extra terminal state to include in styled output."]
     pub extra: FormatterTerminalExtra,
+    #[doc = " Optional selection to restrict output to a range.\n  If NULL, the entire screen is formatted."]
+    pub selection: *const Selection,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
     ["Size of FormatterTerminalOptions"]
-        [::std::mem::size_of::<FormatterTerminalOptions>() - 48usize];
+        [::std::mem::size_of::<FormatterTerminalOptions>() - 56usize];
     ["Alignment of FormatterTerminalOptions"]
         [::std::mem::align_of::<FormatterTerminalOptions>() - 8usize];
     ["Offset of field: FormatterTerminalOptions::size"]
@@ -1289,6 +1352,8 @@ const _: () = {
         [::std::mem::offset_of!(FormatterTerminalOptions, trim) - 13usize];
     ["Offset of field: FormatterTerminalOptions::extra"]
         [::std::mem::offset_of!(FormatterTerminalOptions, extra) - 16usize];
+    ["Offset of field: FormatterTerminalOptions::selection"]
+        [::std::mem::offset_of!(FormatterTerminalOptions, selection) - 48usize];
 };
 impl Default for FormatterTerminalOptions {
     fn default() -> Self {
@@ -1882,6 +1947,62 @@ unsafe extern "C" {
 unsafe extern "C" {
     #[doc = " Get the value from an SGR attribute.\n\n This function returns a pointer to the value union from an SGR attribute. Use\n the tag to determine which field of the union is valid. Primarily useful in\n WebAssembly environments where accessing struct fields directly is difficult.\n\n"]
     pub fn ghostty_sgr_attribute_value(attr: *mut SgrAttribute) -> *mut SgrAttributeValue;
+}
+#[doc = " Result of decoding an image.\n\n The `data` buffer must be allocated through the allocator provided to\n the decode callback. The library takes ownership and will free it\n with the same allocator."]
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct SysImage {
+    #[doc = " Image width in pixels."]
+    pub width: u32,
+    #[doc = " Image height in pixels."]
+    pub height: u32,
+    #[doc = " Pointer to the decoded RGBA pixel data."]
+    pub data: *mut u8,
+    #[doc = " Length of the pixel data in bytes."]
+    pub data_len: usize,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of SysImage"][::std::mem::size_of::<SysImage>() - 24usize];
+    ["Alignment of SysImage"][::std::mem::align_of::<SysImage>() - 8usize];
+    ["Offset of field: SysImage::width"][::std::mem::offset_of!(SysImage, width) - 0usize];
+    ["Offset of field: SysImage::height"][::std::mem::offset_of!(SysImage, height) - 4usize];
+    ["Offset of field: SysImage::data"][::std::mem::offset_of!(SysImage, data) - 8usize];
+    ["Offset of field: SysImage::data_len"][::std::mem::offset_of!(SysImage, data_len) - 16usize];
+};
+impl Default for SysImage {
+    fn default() -> Self {
+        let mut s = ::std::mem::MaybeUninit::<Self>::uninit();
+        unsafe {
+            ::std::ptr::write_bytes(s.as_mut_ptr(), 0, 1);
+            s.assume_init()
+        }
+    }
+}
+#[doc = " Callback type for PNG decoding.\n\n Decodes raw PNG data into RGBA pixels. The output pixel data must be\n allocated through the provided allocator. The library takes ownership\n of the buffer and will free it with the same allocator.\n"]
+pub type SysDecodePngFn = ::std::option::Option<
+    unsafe extern "C" fn(
+        userdata: *mut ::std::os::raw::c_void,
+        allocator: *const Allocator,
+        data: *const u8,
+        data_len: usize,
+        out: *mut SysImage,
+    ) -> bool,
+>;
+pub mod SysOption {
+    #[doc = " System option identifiers for ghostty_sys_set()."]
+    pub type Type = ::std::os::raw::c_uint;
+    #[doc = " Set the userdata pointer passed to all sys callbacks.\n\n Input type: void* (or NULL)"]
+    pub const GHOSTTY_SYS_OPT_USERDATA: Type = 0;
+    #[doc = " Set the PNG decode function.\n\n When set, the terminal can accept PNG images via the Kitty\n Graphics Protocol. When cleared (NULL value), PNG decoding is\n unsupported and PNG image data will be rejected.\n\n Input type: GhosttySysDecodePngFn (function pointer, or NULL)"]
+    pub const GHOSTTY_SYS_OPT_DECODE_PNG: Type = 1;
+}
+unsafe extern "C" {
+    #[doc = " Set a system-level option.\n\n Configures a process-global implementation function. These should be\n set once at startup before using any terminal functionality that\n depends on them.\n\n               or NULL to clear it\n         option is not recognized"]
+    pub fn ghostty_sys_set(
+        option: SysOption::Type,
+        value: *const ::std::os::raw::c_void,
+    ) -> Result::Type;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
