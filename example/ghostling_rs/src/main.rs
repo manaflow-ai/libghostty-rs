@@ -7,7 +7,7 @@
 //! `libghostty-vt` is able to achieve behind a simple interface.
 
 #![deny(unsafe_code)] // Well, almost.
-use std::{cell::Cell, error::Error, rc::Rc};
+use std::{cell::Cell, error::Error};
 
 use macroquad::{
     miniquad::{conf, window::order_quit},
@@ -16,10 +16,16 @@ use macroquad::{
 use nix::sys::wait;
 
 use libghostty_vt::{
-    RenderState, Terminal, TerminalOptions, build_info,
+    RenderState, Terminal, TerminalOptions,
+    alloc::Bytes,
+    build_info,
     key::{self, Key},
+    kitty::{
+        Graphics,
+        graphics::{self, DecodePng, DecodedImage, Layer, PlacementIterator},
+    },
     mouse,
-    render::{CellIterator, Colors, Dirty, RowIterator, Snapshot},
+    render::{CellIterator, Dirty, RowIterator},
     style::RgbColor,
     terminal::{
         ConformanceLevel, DeviceAttributeFeature, DeviceAttributes, DeviceType, Mode,
@@ -37,7 +43,7 @@ use crate::pty::{Child, Pty, PtyError};
 /// Desired font size in logical (screen) points — the actual texture
 /// will be rasterized at font_size * dpi_scale so glyphs stay crisp on
 /// HiDPI / Retina displays.
-const FONT_SIZE: u16 = 11;
+const FONT_SIZE: u16 = 10;
 
 /// Small padding from window edges
 const PADDING: f32 = 6.0;
@@ -58,9 +64,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // and measured cell metrics.
     let mut dims = Dimensions::new(Some(&font));
     let (cols, rows) = dims.grid_size();
+    let Dimensions {
+        cell_width,
+        cell_height,
+        ..
+    } = dims;
+
+    // Track window size so we only recalculate the grid on actual changes.
+    //
+    // This is kept in a Cell<T> since the terminal effect handler
+    // has to keep a reference to it, and we also want to modify it in the
+    // main loop below. Don't worry, this is completely safe and is just
+    // here to make the Rust compiler happy.
+    let grid_size = Cell::new((cols, rows));
 
     // Spawn a child shell connected to a pseudo-terminal.
     let (pty, mut child) = Pty::new(dims)?;
+
+    // Install the PNG decoder so the terminal can handle PNG images in the
+    // Kitty Graphics Protocol. This is a process-global setting and must be
+    // done before any terminal is created.
+    graphics::set_png_decoder(Some(PngDecoder))?;
 
     // Create a ghostty virtual terminal with the computed grid and 1000
     // lines of scrollback.  This holds all the parsed screen state (cells,
@@ -71,13 +95,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
         max_scrollback: 1000,
     })?;
 
-    // Track window size so we only recalculate the grid on actual changes.
-    //
-    // This is kept in a Rc<Cell<T>> since the terminal effect handler
-    // has to keep a reference to it, and we also want to modify it in the
-    // main loop below. Don't worry, this is completely safe and is just
-    // here to make the Rust compiler happy.
-    let grid_size = Rc::new(Cell::new((cols, rows)));
+    // The terminal options don't include cell pixel dimensions, so
+    // issue an initial resize to set them.  Without this, Kitty
+    // graphics placement_rect would divide by zero cell sizes.
+    terminal.resize(cols, rows, cell_width as u32, cell_height as u32)?;
+
+    terminal
+        // Enable Kitty graphics by setting a storage limit.  Without this the
+        // terminal rejects all image data.  64 MiB is a generous default.
+        .set_kitty_image_storage_limit(64 * 1024 * 1024)?
+        // Allow images to be transmitted via file, temp file, and shared
+        // memory mediums in addition to the default inline (direct) medium.
+        .set_kitty_image_from_file_allowed(true)?
+        .set_kitty_image_from_temp_file_allowed(true)?
+        .set_kitty_image_from_shared_mem_allowed(true)?;
 
     // Register effects so the terminal can respond to VT queries (device
     // attributes, mode reports, size queries, etc.) that programs like
@@ -92,17 +123,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .on_pty_write(|_t, data| pty.write(data))?
         // size effect — responds to XTWINOPS size queries (CSI 14/16/18 t)
         // so programs can discover the terminal geometry in cells and pixels.
-        .on_size({
-            let grid_size = grid_size.clone();
-            move |_term| {
-                let (columns, rows) = grid_size.get();
-                Some(SizeReportSize {
-                    rows,
-                    columns,
-                    cell_width: dims.cell_width as u32,
-                    cell_height: dims.cell_height as u32,
-                })
-            }
+        .on_size(|_term| {
+            let (columns, rows) = grid_size.get();
+            Some(SizeReportSize {
+                rows,
+                columns,
+                cell_width: cell_width as u32,
+                cell_height: cell_height as u32,
+            })
         })?
         // device_attributes effect — responds to DA1/DA2/DA3 queries so
         // terminal applications can identify the terminal's capabilities.
@@ -135,11 +163,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // false to silently ignore the query rather than guessing.
         .on_color_scheme(|_term| None)?;
 
-    // Create the render state and its reusable iterator/cells handles once
-    // up front.  These are updated each frame rather than recreated.
+    // Create the render state and its reusable iterators once
+    // up front. These are updated each frame rather than recreated.
     let mut render_state = RenderState::new()?;
     let mut row_it = RowIterator::new()?;
     let mut cell_it = CellIterator::new()?;
+    let mut placement_it = PlacementIterator::new()?;
 
     // Create the key encoder and a reusable key event for input handling.
     // The encoder translates key events into the correct VT escape
@@ -237,26 +266,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        // Snapshot the terminal state into our render state. This is the
-        // only point where we need access to the terminal; after this the
-        // snapshot owns everything we need to draw the frame.
-        //
-        // When a snapshot is active, the render state cannot be updated —
-        // this is upheld in the Rust API by making the snapshot take an
-        // exclusive (mutable) reference to the render state.
-        let snapshot = render_state.update(&terminal)?;
-
-        // Get the terminal's background color from the render state snapshot.
-        let colors = snapshot.colors()?;
-        clear_background(color(colors.background));
-
         // Draw the current terminal screen.
         render_terminal(
-            &snapshot,
+            &terminal,
+            &mut render_state,
             &mut row_it,
             &mut cell_it,
+            &mut placement_it,
             dims,
-            &colors,
             Some(&font),
         )?;
         next_frame().await
@@ -278,20 +295,45 @@ async fn main() -> Result<(), Box<dyn Error>> {
 /// monospace glyph at the current font size, in screen (logical) pixels.
 /// font_size is the logical font size (before DPI scaling).
 fn render_terminal<'alloc>(
-    snapshot: &Snapshot<'alloc, '_>,
+    terminal: &Terminal<'alloc, '_>,
+    render_state: &mut RenderState<'alloc>,
     row_it: &mut RowIterator<'alloc>,
     cell_it: &mut CellIterator<'alloc>,
+    placement_it: &mut PlacementIterator<'alloc>,
     dims: Dimensions,
-    colors: &Colors,
     font: Option<&Font>,
 ) -> Result<(), libghostty_vt::Error> {
+    // Snapshot the terminal state into our render state. This is the
+    // only point where we need access to the terminal; after this the
+    // snapshot owns everything we need to draw the frame.
+    //
+    // When a snapshot is active, the render state cannot be updated —
+    // this is upheld in the Rust API by making the snapshot take an
+    // exclusive (mutable) reference to the render state.
+    let snapshot = render_state.update(terminal)?;
+
+    // Get the terminal's background color from the render state snapshot.
+    let colors = snapshot.colors()?;
+    clear_background(color(colors.background));
+
+    // Obtain the Kitty graphics storage from the terminal. This is a
+    // reference valid until the next mutating terminal call.
+    let graphics = terminal.kitty_graphics();
+
     // Populate the row iterator from the current render state snapshot,
     // resulting in a row *iteration* object, which can be thought of as
     // a cursor into a row of the snapshot. Attributes of the current row
     // can be read from it via a shared reference, or it can be moved
     // to point at the next row via a mutable reference.
+    let mut row_it = row_it.update(&snapshot)?;
+
+    // --- Layer 1: images below cell backgrounds (z < INT32_MIN/2) ---
+    if let Ok(graphics) = graphics.as_ref() {
+        render_kitty_images(terminal, placement_it, graphics, Layer::BelowBg, dims)?
+    }
+
+    // Small padding from the window edges.
     let mut y = PADDING;
-    let mut row_it = row_it.update(snapshot)?;
 
     // For convenience, `next` gives you the same iteration back only
     // as a shared pointer, so you can simultaneously iterate through
@@ -385,8 +427,14 @@ fn render_terminal<'alloc>(
         y += dims.cell_height;
     }
 
-    // Reset global dirty state so the next update reports changes accurately.
-    snapshot.set_dirty(Dirty::Clean)?;
+    // --- Layer 2: images below text (i32::MIN / 2 <= z < 0) ---
+    // Drawn after cell backgrounds but before the cursor and any
+    // above-text images.  In our single-pass renderer the cell text
+    // has already been drawn, but this still achieves the correct
+    // visual for the common case where images sit behind text.
+    if let Ok(graphics) = graphics.as_ref() {
+        render_kitty_images(terminal, placement_it, &graphics, Layer::BelowText, dims)?
+    }
 
     // Draw the cursor if visible.
     if snapshot.cursor_visible()?
@@ -404,6 +452,93 @@ fn render_terminal<'alloc>(
             color(cursor_color),
         );
     }
+
+    // --- Layer 3: images above text (z >= 0) ---
+    if let Ok(graphics) = graphics.as_ref() {
+        render_kitty_images(terminal, placement_it, &graphics, Layer::AboveText, dims)?
+    }
+
+    // Reset global dirty state so the next update reports changes accurately.
+    snapshot.set_dirty(Dirty::Clean)?;
+    Ok(())
+}
+
+fn render_kitty_images<'t>(
+    terminal: &'t Terminal<'_, '_>,
+    placement_it: &mut PlacementIterator<'_>,
+    graphics: &Graphics<'t>,
+    layer: Layer,
+    dims: Dimensions,
+) -> Result<(), libghostty_vt::Error> {
+    let mut placements = placement_it.update(graphics)?;
+    placements.set_layer(layer)?;
+
+    while let Some(placement) = placements.next() {
+        let image_id = placement.image_id()?;
+        let Some(image) = graphics.image(image_id) else {
+            continue;
+        };
+        // Get viewport-relative position. Returns `None` when the placement
+        // is entirely off-screen or is a virtual (unicode placeholder) placement,
+        // so both cases are handled in one call.
+        let Some(vpos) = placement.viewport_pos(&image, terminal)? else {
+            continue;
+        };
+
+        // Read image dimensions and pixel data. We only handle RGBA
+        // (the PNG decoder we registered converts everything to RGBA)
+        let width = image.width()?;
+        let height = image.height()?;
+        if width == 0 || height == 0 {
+            continue;
+        }
+        if image.format()? != graphics::ImageFormat::Rgba {
+            continue;
+        }
+
+        let data = image.data()?;
+        if data.len() < (width * height * 4) as usize {
+            continue;
+        }
+
+        // Compute grid cell count for rendered size.
+        let grid_size = placement.grid_size(&image, terminal)?;
+        if grid_size.cols == 0 || grid_size.rows == 0 {
+            continue;
+        }
+        let dest_size = vec2(
+            grid_size.cols as f32 * dims.cell_width,
+            grid_size.rows as f32 * dims.cell_height,
+        );
+
+        // Get the resolved source rectangle (handles "0 = full image"
+        // semantics and clamps to image bounds)
+        let source_rect = placement.source_rect(&image)?;
+
+        // Read the sub-cell pixel offsets
+        let x_offset = placement.x_offset()?;
+        let y_offset = placement.y_offset()?;
+
+        let tex = Texture2D::from_rgba8(width as u16, height as u16, data);
+
+        draw_texture_ex(
+            &tex,
+            PADDING + vpos.col as f32 * dims.cell_width + x_offset as f32,
+            PADDING + vpos.row as f32 * dims.cell_height + y_offset as f32,
+            WHITE,
+            DrawTextureParams {
+                dest_size: Some(dest_size),
+                source: Some(Rect {
+                    x: source_rect.x as f32,
+                    y: source_rect.y as f32,
+                    w: source_rect.width as f32,
+                    h: source_rect.height as f32,
+                }),
+                ..Default::default()
+            },
+        );
+    }
+
     Ok(())
 }
 
@@ -790,6 +925,35 @@ fn macroquad_conf() -> Conf {
             ..Default::default()
         },
         ..Default::default()
+    }
+}
+
+// ---------------------------------------------------------------------------
+// System callbacks (process-global, set once at startup)
+// ---------------------------------------------------------------------------
+
+/// A decoder that decodes raw PNG data into 8-bit RGBA pixels using
+/// `macroquad`'s PNG decoder. The output buffer is allocated through the
+/// provided `Allocator` so the library can free it later.
+struct PngDecoder;
+
+impl DecodePng for PngDecoder {
+    fn decode_png<'alloc>(
+        &mut self,
+        alloc: &'alloc libghostty_vt::alloc::Allocator<'_>,
+        data: &[u8],
+    ) -> Option<DecodedImage<'alloc>> {
+        // `macroquad` decodes the PNG image for us and converts it
+        // to the correct RGBA8 pixel format automatically.
+        let img = Image::from_file_with_format(data, Some(ImageFormat::Png)).ok()?;
+        let mut data = Bytes::new_with_alloc(alloc, img.bytes.len()).ok()?;
+        data.copy_from_slice(&img.bytes);
+
+        Some(DecodedImage {
+            width: img.width as u32,
+            height: img.height as u32,
+            data,
+        })
     }
 }
 

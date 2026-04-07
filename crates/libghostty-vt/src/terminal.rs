@@ -258,10 +258,11 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
     }
 
     /// Set the value of a terminal mode.
-    pub fn set_mode(&mut self, mode: Mode, value: bool) -> Result<()> {
+    pub fn set_mode(&mut self, mode: Mode, value: bool) -> Result<&mut Self> {
         let result =
             unsafe { ffi::ghostty_terminal_mode_set(self.inner.as_raw(), mode.into(), value) };
-        from_result(result)
+        from_result(result)?;
+        Ok(self)
     }
 
     pub(crate) fn get<T>(&self, tag: ffi::TerminalData::Type) -> Result<T> {
@@ -402,8 +403,9 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
             .map(|v| v.map(Into::into))
     }
     /// Set the default foreground color.
-    pub fn set_default_fg_color(&mut self, v: Option<RgbColor>) -> Result<()> {
-        self.set_optional(Opt::COLOR_FOREGROUND, v.map(ffi::ColorRgb::from).as_ref())
+    pub fn set_default_fg_color(&mut self, v: Option<RgbColor>) -> Result<&mut Self> {
+        self.set_optional(Opt::COLOR_FOREGROUND, v.map(ffi::ColorRgb::from).as_ref())?;
+        Ok(self)
     }
 
     /// The effective background color (override or default).
@@ -417,8 +419,9 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
             .map(|v| v.map(Into::into))
     }
     /// Set the default background color.
-    pub fn set_default_bg_color(&mut self, v: Option<RgbColor>) -> Result<()> {
-        self.set_optional(Opt::COLOR_BACKGROUND, v.map(ffi::ColorRgb::from).as_ref())
+    pub fn set_default_bg_color(&mut self, v: Option<RgbColor>) -> Result<&mut Self> {
+        self.set_optional(Opt::COLOR_BACKGROUND, v.map(ffi::ColorRgb::from).as_ref())?;
+        Ok(self)
     }
 
     /// The effective cursor color (override or default).
@@ -432,8 +435,9 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
             .map(|v| v.map(Into::into))
     }
     /// Set the default cursor color.
-    pub fn set_default_cursor_color(&mut self, v: Option<RgbColor>) -> Result<()> {
-        self.set_optional(Opt::COLOR_CURSOR, v.map(ffi::ColorRgb::from).as_ref())
+    pub fn set_default_cursor_color(&mut self, v: Option<RgbColor>) -> Result<&mut Self> {
+        self.set_optional(Opt::COLOR_CURSOR, v.map(ffi::ColorRgb::from).as_ref())?;
+        Ok(self)
     }
 
     /// The current 256-color palette.
@@ -447,11 +451,12 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
             .map(|v| v.map(Into::into))
     }
     /// Set the default 256-color palette.
-    pub fn set_default_color_palette(&mut self, v: Option<[RgbColor; 256]>) -> Result<()> {
+    pub fn set_default_color_palette(&mut self, v: Option<[RgbColor; 256]>) -> Result<&mut Self> {
         self.set_optional(
             Opt::COLOR_PALETTE,
             v.map(|v| v.map(ffi::ColorRgb::from)).as_ref(),
-        )
+        )?;
+        Ok(self)
     }
 }
 impl Drop for Terminal<'_, '_> {

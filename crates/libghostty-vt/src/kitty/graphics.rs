@@ -238,7 +238,7 @@ impl Terminal<'_, '_> {
     ///
     /// Returns a borrowed reference to the image storage.
     /// The pointer is valid until the next mutating terminal call (e.g.
-    /// [`Terminal::vt_write`] or [`Terminal::reset`].
+    /// [`Terminal::vt_write`] or [`Terminal::reset`]).
     pub fn kitty_graphics(&self) -> Result<Graphics<'_>> {
         let inner = self.get::<ffi::KittyGraphics>(ffi::TerminalData::KITTY_GRAPHICS)?;
         Ok(Graphics {
@@ -254,12 +254,12 @@ impl Terminal<'_, '_> {
     }
     /// Whether the file medium is enabled for Kitty image loading on the
     /// active screen.
-    pub fn is_kitty_image_from_file_allowed(&self) -> Result<()> {
+    pub fn is_kitty_image_from_file_allowed(&self) -> Result<bool> {
         self.get(ffi::TerminalData::KITTY_IMAGE_MEDIUM_FILE)
     }
     /// Whether the temporary file medium is enabled for Kitty image loading
     /// on the active screen.
-    pub fn is_kitty_image_from_temp_file_allowed(&self) -> Result<()> {
+    pub fn is_kitty_image_from_temp_file_allowed(&self) -> Result<bool> {
         self.get(ffi::TerminalData::KITTY_IMAGE_MEDIUM_TEMP_FILE)
     }
     /// Whether the shared memory medium is enabled for Kitty image loading
@@ -272,26 +272,30 @@ impl Terminal<'_, '_> {
     /// Applied to all initialized screens (primary and alternate).
     /// A value of zero disables the Kitty graphics protocol entirely,
     /// deleting all stored images and placements.
-    pub fn set_kitty_image_storage_limit(&mut self, limit: u64) -> Result<()> {
-        self.set(ffi::TerminalOption::KITTY_IMAGE_STORAGE_LIMIT, &limit)
+    pub fn set_kitty_image_storage_limit(&mut self, limit: u64) -> Result<&mut Self> {
+        self.set(ffi::TerminalOption::KITTY_IMAGE_STORAGE_LIMIT, &limit)?;
+        Ok(self)
     }
     /// Enable or disable Kitty image loading via the file medium.
     ///
     /// Has no effect when Kitty graphics are disabled at build time.
-    pub fn set_kitty_image_from_file_allowed(&mut self, allowed: bool) -> Result<()> {
-        self.set(ffi::TerminalOption::KITTY_IMAGE_MEDIUM_FILE, &allowed)
+    pub fn set_kitty_image_from_file_allowed(&mut self, allowed: bool) -> Result<&mut Self> {
+        self.set(ffi::TerminalOption::KITTY_IMAGE_MEDIUM_FILE, &allowed)?;
+        Ok(self)
     }
     /// Enable or disable Kitty image loading via the temporary file medium.
     ///
     /// Has no effect when Kitty graphics are disabled at build time.
-    pub fn set_kitty_image_from_temp_file_allowed(&mut self, allowed: bool) -> Result<()> {
-        self.set(ffi::TerminalOption::KITTY_IMAGE_MEDIUM_TEMP_FILE, &allowed)
+    pub fn set_kitty_image_from_temp_file_allowed(&mut self, allowed: bool) -> Result<&mut Self> {
+        self.set(ffi::TerminalOption::KITTY_IMAGE_MEDIUM_TEMP_FILE, &allowed)?;
+        Ok(self)
     }
     /// Enable or disable Kitty image loading via the shared memory medium.
     ///
     /// Has no effect when Kitty graphics are disabled at build time.
-    pub fn set_kitty_image_from_shared_mem_allowed(&mut self, allowed: bool) -> Result<()> {
-        self.set(ffi::TerminalOption::KITTY_IMAGE_MEDIUM_SHARED_MEM, &allowed)
+    pub fn set_kitty_image_from_shared_mem_allowed(&mut self, allowed: bool) -> Result<&mut Self> {
+        self.set(ffi::TerminalOption::KITTY_IMAGE_MEDIUM_SHARED_MEM, &allowed)?;
+        Ok(self)
     }
 }
 
@@ -341,7 +345,7 @@ impl<'t> Image<'t> {
         self.get(ffi::KittyGraphicsImageData::HEIGHT)
     }
     /// Pixel format of the image.
-    pub fn format(&self) -> Result<ffi::KittyImageFormat::Type> {
+    pub fn format(&self) -> Result<ImageFormat> {
         self.get::<ffi::KittyImageFormat::Type>(ffi::KittyGraphicsImageData::FORMAT)
             .and_then(|v| v.try_into().map_err(|_| Error::InvalidValue))
     }
@@ -431,7 +435,7 @@ impl<'t, 'alloc> PlacementIteration<'t, 'alloc> {
             ffi::ghostty_kitty_graphics_placement_iterator_set(
                 self.0.inner.as_raw(),
                 tag,
-                std::ptr::from_ref(&value).cast(),
+                std::ptr::from_ref(value).cast(),
             )
         };
         from_result(result)
@@ -703,7 +707,7 @@ pub enum Layer {
 #[non_exhaustive]
 #[repr(u32)]
 #[expect(missing_docs, reason = "missing upstream docs")]
-pub enum Format {
+pub enum ImageFormat {
     #[default]
     Rgb = ffi::KittyImageFormat::RGB,
     Rgba = ffi::KittyImageFormat::RGBA,
@@ -781,8 +785,7 @@ pub fn set_png_decoder(f: Option<impl DecodePng>) -> Result<()> {
     });
     crate::sys_set(
         ffi::SysOption::GHOSTTY_SYS_OPT_DECODE_PNG,
-        ptr.map(|p| p as *const std::ffi::c_void)
-            .unwrap_or(std::ptr::null()),
+        ptr.map_or(std::ptr::null(), |p| p as *const std::ffi::c_void),
     )
 }
 
@@ -795,9 +798,9 @@ pub trait DecodePng: 'static {
     ///
     /// The returned image's byte buffer *must* be allocated by
     /// the provided allocator.
-    fn decode_png<'alloc, 'ctx>(
+    fn decode_png<'alloc>(
         &mut self,
-        alloc: &'alloc Allocator<'ctx>,
+        alloc: &'alloc Allocator<'_>,
         data: &[u8],
     ) -> Option<DecodedImage<'alloc>>;
 }
@@ -816,9 +819,9 @@ pub struct RustPngDecoder {
 }
 #[cfg(all(feature = "kitty-graphics", feature = "png"))]
 impl DecodePng for RustPngDecoder {
-    fn decode_png<'alloc, 'ctx>(
+    fn decode_png<'alloc>(
         &mut self,
-        alloc: &'alloc Allocator<'ctx>,
+        alloc: &'alloc Allocator<'_>,
         data: &[u8],
     ) -> Option<DecodedImage<'alloc>> {
         use png::{Decoder, Transformations};
