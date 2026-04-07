@@ -63,6 +63,26 @@ impl<T> Object<'_, T> {
     }
 }
 
+/// Borrowed version of `Object`.
+#[derive(Debug)]
+pub(crate) struct Ref<'a, T> {
+    pub(crate) ptr: NonNull<T>,
+    _phan: PhantomData<&'a ()>,
+}
+
+impl<T> Ref<'_, T> {
+    pub(crate) fn new(raw: *mut T) -> Result<Self> {
+        let ptr = NonNull::new(raw).ok_or(Error::OutOfMemory)?;
+        Ok(Self {
+            ptr,
+            _phan: PhantomData,
+        })
+    }
+    pub(crate) fn as_raw(&self) -> *mut T {
+        self.ptr.as_ptr()
+    }
+}
+
 /// Bytes allocated by libghostty, possibly using a custom allocator.
 #[derive(Debug)]
 pub struct Bytes<'alloc> {

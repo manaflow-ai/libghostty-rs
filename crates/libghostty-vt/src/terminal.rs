@@ -1,6 +1,6 @@
 //! Types and functions around terminal state management.
 
-use std::{marker::PhantomData, mem::MaybeUninit};
+use std::mem::MaybeUninit;
 
 use crate::{
     alloc::{Allocator, Object},
@@ -244,10 +244,7 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
             ffi::ghostty_terminal_grid_ref(self.inner.as_raw(), point.into(), &raw mut grid_ref)
         };
         from_result(result)?;
-        Ok(GridRef {
-            inner: grid_ref,
-            _phan: PhantomData,
-        })
+        Ok(unsafe { GridRef::from_raw(grid_ref) })
     }
 
     /// Get the current value of a terminal mode.
@@ -267,7 +264,7 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
         from_result(result)
     }
 
-    fn get<T>(&self, tag: ffi::TerminalData::Type) -> Result<T> {
+    pub(crate) fn get<T>(&self, tag: ffi::TerminalData::Type) -> Result<T> {
         let mut value = MaybeUninit::<T>::zeroed();
         let result = unsafe {
             ffi::ghostty_terminal_get(self.inner.as_raw(), tag, value.as_mut_ptr().cast())
@@ -276,20 +273,24 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
         // SAFETY: Value should be initialized after successful call.
         Ok(unsafe { value.assume_init() })
     }
-    fn get_optional<T>(&self, tag: ffi::TerminalData::Type) -> Result<Option<T>> {
+    pub(crate) fn get_optional<T>(&self, tag: ffi::TerminalData::Type) -> Result<Option<T>> {
         let mut value = MaybeUninit::<T>::zeroed();
         let result = unsafe {
             ffi::ghostty_terminal_get(self.inner.as_raw(), tag, value.as_mut_ptr().cast())
         };
         from_optional_result(result, value)
     }
-    fn set<T>(&self, tag: ffi::TerminalOption::Type, v: &T) -> Result<()> {
+    pub(crate) fn set<T>(&self, tag: ffi::TerminalOption::Type, v: &T) -> Result<()> {
         let result = unsafe {
             ffi::ghostty_terminal_set(self.inner.as_raw(), tag, std::ptr::from_ref(v).cast())
         };
         from_result(result)
     }
-    fn set_optional<T>(&mut self, tag: ffi::TerminalOption::Type, v: Option<&T>) -> Result<()> {
+    pub(crate) fn set_optional<T>(
+        &mut self,
+        tag: ffi::TerminalOption::Type,
+        v: Option<&T>,
+    ) -> Result<()> {
         let ptr = if let Some(v) = v {
             std::ptr::from_ref(v)
         } else {
@@ -453,58 +454,6 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
         )
     }
 }
-
-#[cfg(feature = "kitty-images")]
-impl Terminal<'_, '_> {
-    /// The Kitty image storage limit in bytes for the active screen.
-    ///
-    /// A value of zero means the Kitty graphics protocol is disabled.
-    pub fn kitty_image_storage_limit(&self) -> Result<u64> {
-        self.get(Data::KITTY_IMAGE_STORAGE_LIMIT)
-    }
-    /// Whether the file medium is enabled for Kitty image loading on the
-    /// active screen.
-    pub fn is_kitty_image_from_file_allowed(&self) -> Result<()> {
-        self.get(Data::KITTY_IMAGE_MEDIUM_FILE)
-    }
-    /// Whether the temporary file medium is enabled for Kitty image loading
-    /// on the active screen.
-    pub fn is_kitty_image_from_temp_file_allowed(&self) -> Result<()> {
-        self.get(Data::KITTY_IMAGE_MEDIUM_TEMP_FILE)
-    }
-    /// Whether the shared memory medium is enabled for Kitty image loading
-    /// on the active screen.
-    pub fn is_kitty_image_from_shared_mem_allowed(&self) -> Result<bool> {
-        self.get(Data::KITTY_IMAGE_MEDIUM_SHARED_MEM)
-    }
-    /// Set the Kitty image storage limit in bytes.
-    ///
-    /// Applied to all initialized screens (primary and alternate).
-    /// A value of zero disables the Kitty graphics protocol entirely,
-    /// deleting all stored images and placements.
-    pub fn set_kitty_image_storage_limit(&mut self, limit: u64) -> Result<()> {
-        self.set(Opt::KITTY_IMAGE_STORAGE_LIMIT, &limit)
-    }
-    /// Enable or disable Kitty image loading via the file medium.
-    ///
-    /// Has no effect when Kitty graphics are disabled at build time.
-    pub fn set_kitty_image_from_file_allowed(&mut self, allowed: bool) -> Result<()> {
-        self.set(Opt::KITTY_IMAGE_MEDIUM_FILE, &allowed)
-    }
-    /// Enable or disable Kitty image loading via the temporary file medium.
-    ///
-    /// Has no effect when Kitty graphics are disabled at build time.
-    pub fn set_kitty_image_from_temp_file_allowed(&mut self, allowed: bool) -> Result<()> {
-        self.set(Opt::KITTY_IMAGE_MEDIUM_TEMP_FILE, &allowed)
-    }
-    /// Enable or disable Kitty image loading via the shared memory medium.
-    ///
-    /// Has no effect when Kitty graphics are disabled at build time.
-    pub fn set_kitty_image_from_shared_mem_allowed(&mut self, allowed: bool) -> Result<()> {
-        self.set(Opt::KITTY_IMAGE_MEDIUM_SHARED_MEM, &allowed)
-    }
-}
-
 impl Drop for Terminal<'_, '_> {
     fn drop(&mut self) {
         unsafe { ffi::ghostty_terminal_free(self.inner.as_raw()) }
@@ -952,16 +901,16 @@ macro_rules! handlers {
                     let vtable = unsafe { &mut *ud.cast::<VTable<'_, '_>>() };
 
                     let obj = $crate::alloc::Object::new(t).expect("received null terminal ptr in callback - this is a bug!");
-                    let $t = $crate::terminal::Terminal::<'_, '_> {
+                    // IMPORTANT: Do NOT let the destructor run.
+                    let term = ::core::mem::ManuallyDrop::new($crate::terminal::Terminal::<'_, '_> {
                         inner: obj,
                         vtable: ::core::default::Default::default(),
-                    };
+                    });
+                    let $t: &$crate::terminal::Terminal = &term;
                     let $func = vtable.$name.as_deref_mut()
                         .expect("no handler set but callback is still called - this is a bug!");
                     let ret = $block;
 
-                    // IMPORTANT: Do NOT let the destructor run.
-                    ::core::mem::forget($t);
                     ret
                 }
 

@@ -47,6 +47,13 @@ pub struct GridRef<'t> {
 }
 
 impl GridRef<'_> {
+    pub(crate) unsafe fn from_raw(inner: ffi::GridRef) -> Self {
+        Self {
+            inner,
+            _phan: PhantomData,
+        }
+    }
+
     /// Get the row from a grid reference.
     pub fn row(&self) -> Result<Row> {
         let mut v = ffi::Row::default();
@@ -259,6 +266,15 @@ impl From<Selection<'_>> for ffi::Selection {
             end: value.end.inner,
             rectangle: value.rectangle,
             ..ffi::sized!(ffi::Selection)
+        }
+    }
+}
+impl Selection<'_> {
+    pub(crate) unsafe fn from_raw(value: ffi::Selection) -> Self {
+        Self {
+            start: unsafe { GridRef::from_raw(value.start) },
+            end: unsafe { GridRef::from_raw(value.end) },
+            rectangle: value.rectangle,
         }
     }
 }

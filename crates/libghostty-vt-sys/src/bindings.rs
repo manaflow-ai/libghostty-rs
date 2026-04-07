@@ -942,23 +942,23 @@ pub mod KittyGraphicsImageData {
     #[doc = " Queryable data kinds for ghostty_kitty_graphics_image_get().\n"]
     pub type Type = ::std::os::raw::c_uint;
     #[doc = " Invalid / sentinel value."]
-    pub const GHOSTTY_KITTY_IMAGE_DATA_INVALID: Type = 0;
+    pub const INVALID: Type = 0;
     #[doc = " The image ID.\n\n Output type: uint32_t *"]
-    pub const GHOSTTY_KITTY_IMAGE_DATA_ID: Type = 1;
+    pub const ID: Type = 1;
     #[doc = " The image number.\n\n Output type: uint32_t *"]
-    pub const GHOSTTY_KITTY_IMAGE_DATA_NUMBER: Type = 2;
+    pub const NUMBER: Type = 2;
     #[doc = " Image width in pixels.\n\n Output type: uint32_t *"]
-    pub const GHOSTTY_KITTY_IMAGE_DATA_WIDTH: Type = 3;
+    pub const WIDTH: Type = 3;
     #[doc = " Image height in pixels.\n\n Output type: uint32_t *"]
-    pub const GHOSTTY_KITTY_IMAGE_DATA_HEIGHT: Type = 4;
+    pub const HEIGHT: Type = 4;
     #[doc = " Pixel format of the image.\n\n Output type: GhosttyKittyImageFormat *"]
-    pub const GHOSTTY_KITTY_IMAGE_DATA_FORMAT: Type = 5;
+    pub const FORMAT: Type = 5;
     #[doc = " Compression of the image.\n\n Output type: GhosttyKittyImageCompression *"]
-    pub const GHOSTTY_KITTY_IMAGE_DATA_COMPRESSION: Type = 6;
+    pub const COMPRESSION: Type = 6;
     #[doc = " Borrowed pointer to the raw pixel data. Valid as long as the\n underlying terminal is not mutated.\n\n Output type: const uint8_t **"]
-    pub const GHOSTTY_KITTY_IMAGE_DATA_DATA_PTR: Type = 7;
+    pub const DATA_PTR: Type = 7;
     #[doc = " Length of the raw pixel data in bytes.\n\n Output type: size_t *"]
-    pub const GHOSTTY_KITTY_IMAGE_DATA_DATA_LEN: Type = 8;
+    pub const DATA_LEN: Type = 8;
 }
 unsafe extern "C" {
     #[doc = " Get data from a kitty graphics storage instance.\n\n The output pointer must be of the appropriate type for the requested\n data kind.\n\n Returns GHOSTTY_NO_VALUE when Kitty graphics are disabled at build time.\n\n"]

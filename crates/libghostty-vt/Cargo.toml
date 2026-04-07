@@ -8,9 +8,9 @@ repository.workspace = true
 rust-version.workspace = true
 
 [features]
-default = ["kitty-images"]
+default = ["kitty-graphics"]
 allocator_api = ["dep:allocator-api2"]
-kitty-images = ["libghostty-vt-sys/kitty-images"]
+kitty-graphics = ["libghostty-vt-sys/kitty-graphics"]
 png = ["dep:png"]
 
 [dependencies]
