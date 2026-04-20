@@ -4,7 +4,7 @@ use std::mem::MaybeUninit;
 
 use crate::{
     alloc::{Allocator, Object},
-    error::{Error, Result, from_optional_result, from_result},
+    error::{from_optional_result, from_result, Error, Result},
     ffi::{self, TerminalData as Data, TerminalOption as Opt},
     key,
     screen::{GridRef, Screen},
@@ -109,6 +109,8 @@ pub use ffi::{SizeReportSize, TerminalScrollbar as Scrollbar};
 #[derive(Debug)]
 pub struct Terminal<'alloc: 'cb, 'cb> {
     pub(crate) inner: Object<'alloc, ffi::TerminalImpl>,
+    // Keep callbacks in a heap allocation so C can store a userdata pointer
+    // to the VTable itself. That pointer remains stable even if Terminal moves.
     vtable: Box<VTable<'alloc, 'cb>>,
 }
 
@@ -285,6 +287,16 @@ impl<'alloc: 'cb, 'cb> Terminal<'alloc, 'cb> {
         let result = unsafe {
             ffi::ghostty_terminal_set(self.inner.as_raw(), tag, std::ptr::from_ref(v).cast())
         };
+        from_result(result)
+    }
+    /// Set an option whose ABI expects the pointer value itself, not a pointer
+    /// to Rust storage containing that value.
+    pub(crate) fn set_ptr(
+        &self,
+        tag: ffi::TerminalOption::Type,
+        ptr: *const std::ffi::c_void,
+    ) -> Result<()> {
+        let result = unsafe { ffi::ghostty_terminal_set(self.inner.as_raw(), tag, ptr) };
         from_result(result)
     }
     pub(crate) fn set_optional<T>(
@@ -902,12 +914,18 @@ macro_rules! handlers {
                     ud: *mut std::ffi::c_void,
                     $($rfname: $rfty),*
                 ) $(-> $rawrty)? {
-                    // SAFETY: We own the vtable, so it should never become invalid.
-                    let vtable = unsafe { &mut *ud.cast::<::std::boxed::Box<VTable<'_, '_>>>() };
+                    // SAFETY: USERDATA is set to the boxed VTable pointee
+                    // (derived from a mutable reference for write provenance)
+                    // before the callback is registered. ghostty invokes
+                    // callbacks synchronously during vt_write, so the VTable
+                    // remains alive and exclusively accessed for the duration
+                    // of this call.
+                    let vtable = unsafe { &mut *ud.cast::<VTable<'_, '_>>() };
 
                     let obj = $crate::alloc::Object::new(t).expect("received null terminal ptr in callback - this is a bug!");
-                    // IMPORTANT: Do NOT let the destructor run.
-                    let term = ::core::mem::ManuallyDrop::new($crate::terminal::Terminal::<'_, '_> {
+                    // Build a temporary borrowed Terminal view for the callback
+                    // without taking ownership of the underlying ghostty terminal.
+                    let mut term = ::core::mem::ManuallyDrop::new($crate::terminal::Terminal::<'_, '_> {
                         inner: obj,
                         vtable: ::core::default::Default::default(),
                     });
@@ -916,15 +934,26 @@ macro_rules! handlers {
                         .expect("no handler set but callback is still called - this is a bug!");
                     let ret = $block;
 
+                    // SAFETY: The temporary vtable was allocated solely to satisfy
+                    // the Terminal layout expected by the callback signature. Drop
+                    // it explicitly while intentionally leaving the borrowed
+                    // terminal handle itself untouched.
+                    unsafe { ::core::ptr::drop_in_place(&mut term.vtable) };
+
                     ret
                 }
 
                 self.vtable.$name = Some(::std::boxed::Box::new(f));
 
-                self.set(
-                    $crate::ffi::TerminalOption::USERDATA,
-                    &self.vtable
-                )?;
+                // USERDATA is a raw pointer option: pass the heap allocation
+                // itself, not the address of the Box smart pointer field stored
+                // inline in Terminal.
+                //
+                // Derive the pointer from a mutable reference so it carries
+                // write provenance – the callback later reborrows it as &mut.
+                let userdata = std::ptr::from_mut::<VTable<'alloc, 'cb>>(self.vtable.as_mut())
+                    as *const ::std::ffi::c_void;
+                self.set_ptr($crate::ffi::TerminalOption::USERDATA, userdata)?;
 
                 // The callback must be coerced into a function *pointer*
                 // and not a function *item* (which is a ZST whose address is meaningless).
@@ -1109,5 +1138,101 @@ handlers! {
         } else {
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+    use std::mem::ManuallyDrop;
+    use std::rc::Rc;
+
+    #[inline(never)]
+    fn build_terminal(callback_count: Rc<Cell<usize>>) -> Terminal<'static, 'static> {
+        let mut terminal = Terminal::new(Options {
+            cols: 80,
+            rows: 24,
+            max_scrollback: 1000,
+        })
+        .expect("terminal should initialize");
+
+        terminal
+            .on_device_attributes(move |_term| {
+                callback_count.set(callback_count.get() + 1);
+                Some(DeviceAttributes {
+                    primary: PrimaryDeviceAttributes::new(
+                        ConformanceLevel::VT220,
+                        [DeviceAttributeFeature::ANSI_COLOR],
+                    ),
+                    secondary: SecondaryDeviceAttributes {
+                        device_type: DeviceType::VT220,
+                        firmware_version: 1,
+                        rom_cartridge: 0,
+                    },
+                    tertiary: TertiaryDeviceAttributes { unit_id: 0 },
+                })
+            })
+            .expect("callback should register");
+
+        terminal
+    }
+
+    /// Move a value into distinct heap storage with an explicit byte-for-byte
+    /// relocation so the test does not rely on optimizer or allocator behavior.
+    fn relocate_into_new_box<T>(value: T) -> (Box<T>, usize, usize) {
+        // Keep the source allocation alive without running T's destructor.
+        // We need the bytes to remain initialized until after the copy.
+        let src = Box::new(ManuallyDrop::new(value));
+        let src_addr = std::ptr::from_ref(&**src).cast::<T>() as usize;
+
+        unsafe {
+            let dst_layout = std::alloc::Layout::new::<T>();
+            let dst_ptr = std::alloc::alloc(dst_layout).cast::<T>();
+            if dst_ptr.is_null() {
+                std::alloc::handle_alloc_error(dst_layout);
+            }
+
+            let dst_addr = dst_ptr as usize;
+            assert_ne!(
+                src_addr, dst_addr,
+                "test setup failed: source and destination storage unexpectedly match"
+            );
+
+            // SAFETY: src points to a fully initialized T wrapped in
+            // ManuallyDrop, dst points to distinct uninitialized storage for
+            // exactly one T, and the regions do not overlap.
+            std::ptr::copy_nonoverlapping(
+                std::ptr::from_ref(&**src).cast::<T>(),
+                dst_ptr,
+                1,
+            );
+
+            // SAFETY: src was allocated as Box<ManuallyDrop<T>> and must be
+            // freed without dropping T because ownership was transferred by
+            // the raw byte copy above.
+            std::alloc::dealloc(
+                Box::into_raw(src).cast::<u8>(),
+                std::alloc::Layout::new::<ManuallyDrop<T>>(),
+            );
+
+            // SAFETY: We just initialized dst_ptr by copying a valid T into it,
+            // so it now owns exactly one initialized T allocation.
+            (Box::from_raw(dst_ptr), src_addr, dst_addr)
+        }
+    }
+
+    /// Explicitly relocate the Terminal into distinct storage, then verify the
+    /// callback still fires through the stable VTable userdata pointer.
+    #[test]
+    fn callbacks_survive_explicit_relocation() {
+        let callback_count = Rc::new(Cell::new(0usize));
+        let terminal = build_terminal(callback_count.clone());
+        let (mut terminal, addr_before, addr_after) = relocate_into_new_box(terminal);
+        assert_ne!(addr_before, addr_after);
+
+        // Primary DA request (CSI c) should invoke on_device_attributes.
+        terminal.vt_write(b"\x1b[c");
+        assert_eq!(callback_count.get(), 1);
     }
 }
