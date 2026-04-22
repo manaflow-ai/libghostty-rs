@@ -201,6 +201,9 @@ use crate::{
     screen::Selection,
 };
 
+#[doc(inline)]
+pub use ffi::KittyGraphicsPlacementRenderInfo as PlacementRenderInfo;
+
 /// Opaque reference to a Kitty graphics image storage.
 ///
 /// Obtained via [`Terminal::kitty_graphics`]. The reference is borrowed from
@@ -295,6 +298,16 @@ impl Terminal<'_, '_> {
     /// Has no effect when Kitty graphics are disabled at build time.
     pub fn set_kitty_image_from_shared_mem_allowed(&mut self, allowed: bool) -> Result<&mut Self> {
         self.set(ffi::TerminalOption::KITTY_IMAGE_MEDIUM_SHARED_MEM, &allowed)?;
+        Ok(self)
+    }
+
+    /// Set the maximum bytes the APC handler will buffer for Kitty graphics
+    /// protocol data.
+    ///
+    /// This prevents malicious input from causing unbounded memory allocation.
+    /// A `None` value removes all overrides, reverting to the built-in defaults.
+    pub fn set_apc_max_bytes_kitty(&mut self, max: Option<usize>) -> Result<&mut Self> {
+        self.set_optional(ffi::TerminalOption::APC_MAX_BYTES_KITTY, max.as_ref())?;
         Ok(self)
     }
 }
@@ -585,6 +598,32 @@ impl<'t, 'alloc> PlacementIteration<'t, 'alloc> {
         from_result(result)?;
         // SAFETY: Selection should be initialized and valid on success
         Ok(unsafe { Selection::from_raw(sel.assume_init()) })
+    }
+
+    /// Get all rendering geometry for a placement in a single call.
+    ///
+    /// Combines pixel size, grid size, viewport position, and source
+    /// rectangle into one struct.
+    ///
+    /// When `viewport_visible` is false, the placement is fully off-screen
+    /// or is a virtual placement; `viewport_col` and `viewport_row` may
+    /// contain meaningless values in that case.
+    pub fn placement_render_info(
+        &self,
+        image: &Image<'t>,
+        terminal: &'t Terminal<'_, '_>,
+    ) -> Result<PlacementRenderInfo> {
+        let mut info = ffi::sized!(PlacementRenderInfo);
+        let result = unsafe {
+            ffi::ghostty_kitty_graphics_placement_render_info(
+                self.0.inner.as_raw(),
+                image.inner.as_raw(),
+                terminal.inner.as_raw(),
+                &raw mut info,
+            )
+        };
+        from_result(result)?;
+        Ok(info)
     }
 
     /// The image ID this placement belongs to.
