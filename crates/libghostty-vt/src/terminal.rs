@@ -4,7 +4,7 @@ use std::mem::MaybeUninit;
 
 use crate::{
     alloc::{Allocator, Object},
-    error::{from_optional_result, from_result, Error, Result},
+    error::{Error, Result, from_optional_result, from_result},
     ffi::{self, TerminalData as Data, TerminalOption as Opt},
     key,
     screen::{GridRef, Screen},
@@ -1032,7 +1032,7 @@ handlers! {
         // uphold all lifetime invariants (e.g. no `vt_write` calls
         // during this callback, which is guaranteed via the mutable reference).
         let data = unsafe { std::slice::from_raw_parts(ptr, len) };
-        func(&term, data);
+        func(term, data);
     }
 
     /// Call the given function when the terminal receives
@@ -1043,7 +1043,7 @@ handlers! {
         from = GhosttyTerminalBellFn(),
         to = BellFn(),
     ) |term, func| {
-        func(&term);
+        func(term);
     }
 
     /// Call the given function when the terminal receives
@@ -1054,7 +1054,7 @@ handlers! {
         from = GhosttyTerminalEnquiryFn() -> ffi::String,
         to = <'t>EnquiryFn() -> Option<&'t str>,
     ) |term, func| {
-        func(&term).unwrap_or("").into()
+        func(term).unwrap_or("").into()
     }
 
     /// Call the given function when the terminal receives an XTVERSION
@@ -1066,7 +1066,7 @@ handlers! {
         from = GhosttyTerminalXtversionFn() -> ffi::String,
         to = <'t>XtversionFn() -> Option<&'t str>,
     ) |term, func| {
-        func(&term).unwrap_or("").into()
+        func(term).unwrap_or("").into()
     }
 
     /// Call the given function when the terminal title changes
@@ -1080,7 +1080,7 @@ handlers! {
         from = GhosttyTerminalTitleChangedFn(),
         to = TitleChangedFn(),
     ) |term, func| {
-        func(&term);
+        func(term);
     }
 
     /// Call the given function in response to XTWINOPS size queries
@@ -1091,7 +1091,7 @@ handlers! {
         from = GhosttyTerminalSizeFn(out: *mut ffi::SizeReportSize) -> bool,
         to = SizeFn() -> Option<SizeReportSize>,
     ) |term, func| {
-        if let Some(size) = func(&term) {
+        if let Some(size) = func(term) {
             // SAFETY: Out pointer is assumed to be valid.
             unsafe { *out = size };
             true
@@ -1111,7 +1111,7 @@ handlers! {
         from = GhosttyTerminalColorSchemeFn(out: *mut ffi::ColorScheme::Type) -> bool,
         to = ColorSchemeFn() -> Option<ColorScheme>,
     ) |term, func| {
-        if let Some(size) = func(&term) {
+        if let Some(size) = func(term) {
             // SAFETY: Out pointer is assumed to be valid.
             unsafe { *out = size as ffi::ColorScheme::Type };
             true
@@ -1131,7 +1131,7 @@ handlers! {
         from = GhosttyTerminalDeviceAttributesFn(out: *mut ffi::DeviceAttributes) -> bool,
         to = DeviceAttributesFn() -> Option<DeviceAttributes>,
     ) |term, func| {
-        if let Some(size) = func(&term) {
+        if let Some(size) = func(term) {
             // SAFETY: Out pointer is assumed to be valid.
             unsafe { *out = size.into() };
             true
@@ -1202,11 +1202,7 @@ mod tests {
             // SAFETY: src points to a fully initialized T wrapped in
             // ManuallyDrop, dst points to distinct uninitialized storage for
             // exactly one T, and the regions do not overlap.
-            std::ptr::copy_nonoverlapping(
-                std::ptr::from_ref(&**src).cast::<T>(),
-                dst_ptr,
-                1,
-            );
+            std::ptr::copy_nonoverlapping(std::ptr::from_ref(&**src).cast::<T>(), dst_ptr, 1);
 
             // SAFETY: src was allocated as Box<ManuallyDrop<T>> and must be
             // freed without dropping T because ownership was transferred by
@@ -1223,7 +1219,7 @@ mod tests {
     }
 
     /// Explicitly relocate the Terminal into distinct storage, then verify the
-    /// callback still fires through the stable VTable userdata pointer.
+    /// callback still fires through the stable `VTable` userdata pointer.
     #[test]
     fn callbacks_survive_explicit_relocation() {
         let callback_count = Rc::new(Cell::new(0usize));

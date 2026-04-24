@@ -4,7 +4,7 @@ use std::process::Command;
 
 /// Pinned ghostty commit. Update this to pull a newer version.
 const GHOSTTY_REPO: &str = "https://github.com/ghostty-org/ghostty.git";
-const GHOSTTY_COMMIT: &str = "a1e75daef8b64426dbca551c6e41b1fbc2b7ae24";
+const GHOSTTY_COMMIT: &str = "4ceeba4851030e75398cf1e5d3f7d8c7ed645e87";
 
 fn main() {
     // docs.rs has no Zig toolchain. The checked-in bindings in src/bindings.rs
